@@ -66,6 +66,7 @@ public abstract class BaseCompositeReconciler<T extends Composite> extends CoreR
         if (!isCompleted(composite, COMPOSITE_STRUCTURE_UPDATED_STEP_NAME)) {
             try {
                 compositeConsulUpdater.updateCompositeStructureInConsul(compositeSpec);
+                //todo vlla add step to update secret
                 completeStep(composite, COMPOSITE_STRUCTURE_UPDATED_STEP_NAME);
             } catch (NoopConsulException nce) {
                 log.warn("Consul integration is disabled; skip composite CR processing");
@@ -73,6 +74,7 @@ public abstract class BaseCompositeReconciler<T extends Composite> extends CoreR
             } catch (InterruptedException e) {
                 throw e;
             } catch (Exception e) {
+                log.error("VLLA Exception", e);
                 return failStep(composite, COMPOSITE_STRUCTURE_UPDATED_STEP_NAME, "consul update error", e.getMessage());
             }
         }
