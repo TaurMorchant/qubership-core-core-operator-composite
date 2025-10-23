@@ -119,7 +119,7 @@ public class Configuration {
             ConsulClientFactory consulClientFactory,
             Instance<TokenStorage> consulTokenStorage) {
         if (!consulEnabled) {
-            return null; //todo vlla
+            return new CompositeWatcherManager(null, null, null); //todo vlla
         }
         return new CompositeWatcherManager(namespace, consulClientFactory, consulTokenStorage.get());
     }

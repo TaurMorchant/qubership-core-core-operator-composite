@@ -7,7 +7,6 @@ import io.vertx.ext.consul.KeyValue;
 import io.vertx.ext.consul.KeyValueList;
 import jakarta.enterprise.event.Observes;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import com.netcracker.cloud.consul.provider.common.TokenStorage;
 
 import java.util.List;
@@ -30,10 +29,12 @@ public class CompositeWatcherManager {
     }
 
     void onStart(@Observes StartupEvent ev) {
-        ConsulClient client = consulClientFactory.create(null);//todo vlla
+        if (consulClientFactory != null) {
+            ConsulClient client = consulClientFactory.create(null);//todo vlla
 
-        watcher = new CompositeWatcher(client, COMPOSITE_REF_ROLE_BASE_PATH_TEMPLATE.formatted(namespace));
-        watcher.start(this::handleChange);
+            watcher = new CompositeWatcher(client, COMPOSITE_REF_ROLE_BASE_PATH_TEMPLATE.formatted(namespace));
+            watcher.start(this::handleChange);
+        }
     }
 
     void onStop(@Observes ShutdownEvent ev) {
