@@ -113,19 +113,6 @@ public class Configuration {
 
     @Produces
     @ApplicationScoped
-    public CompositeWatcherManager compositeWatcherManager(
-            @ConfigProperty(name = "cloud.microservice.namespace") String namespace,
-            @ConfigProperty(name = "quarkus.consul-source-config.agent.enabled") boolean consulEnabled,
-            ConsulClientFactory consulClientFactory,
-            Instance<TokenStorage> consulTokenStorage) {
-        if (!consulEnabled) {
-            return new CompositeWatcherManager(null, null, null); //todo vlla
-        }
-        return new CompositeWatcherManager(namespace, consulClientFactory, consulTokenStorage.get());
-    }
-
-    @Produces
-    @ApplicationScoped
     public ConsulClientFactory consulClientFactory(Vertx vertx,
                                                    @ConfigProperty(name = "quarkus.consul-source-config.agent.url") URL consulUrl,
                                                    @ConfigProperty(name = "cloud.composite.structure.consul.update-timeout") Long timeout) {

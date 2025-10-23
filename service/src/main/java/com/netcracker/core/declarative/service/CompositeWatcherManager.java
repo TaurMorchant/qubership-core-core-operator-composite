@@ -6,8 +6,11 @@ import io.vertx.ext.consul.ConsulClient;
 import io.vertx.ext.consul.KeyValue;
 import io.vertx.ext.consul.KeyValueList;
 import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.netcracker.cloud.consul.provider.common.TokenStorage;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 
@@ -22,10 +25,21 @@ public class CompositeWatcherManager {
 
     private CompositeWatcher watcher;
 
-    public CompositeWatcherManager(String namespace, ConsulClientFactory consulClientFactory, TokenStorage consulTokenStorage) {
-        this.namespace = namespace;
-        this.consulClientFactory = consulClientFactory;
-        this.consulTokenStorage = consulTokenStorage;
+    @Inject
+    public CompositeWatcherManager(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
+                                   @ConfigProperty(name = "quarkus.consul-source-config.agent.enabled") boolean consulEnabled,
+                                   ConsulClientFactory consulClientFactory,
+                                   TokenStorage consulTokenStorage) {
+        if (consulEnabled) {
+            this.namespace = namespace;
+            this.consulClientFactory = consulClientFactory;
+            this.consulTokenStorage = consulTokenStorage;
+        }
+        else {
+            this.namespace = null;
+            this.consulClientFactory = null;
+            this.consulTokenStorage = null;
+        }
     }
 
     void onStart(@Observes StartupEvent ev) {
