@@ -26,7 +26,7 @@ public class TenantService {
         if (tenant == null) {
             throw new IllegalArgumentException("tenant must be not null");
         }
-        ConsulClient consulClient = consulClientFactory.create(consulTokenStorage.get());
+        ConsulClient consulClient = consulClientFactory.create(null);//todo vlla
         try {
             Optional<String> compositeId = getCompositeIdForMember(tenant.getNamespace());
             if (compositeId.isEmpty()) {
@@ -63,7 +63,7 @@ public class TenantService {
     }
 
     protected Optional<String> getCompositeIdForMember(String namespace) throws ExecutionException, InterruptedException {
-        ConsulClient consulClient = consulClientFactory.create(consulTokenStorage.get());
+        ConsulClient consulClient = consulClientFactory.create(null);//todo vlla
         try {
             return consulClient.getKeys("composite/")
                     .map(keys -> getCompositeIdForMember(keys, namespace))

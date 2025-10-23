@@ -1,0 +1,60 @@
+package com.netcracker.core.declarative.service;
+
+import io.quarkus.runtime.ShutdownEvent;
+import io.quarkus.runtime.StartupEvent;
+import io.vertx.ext.consul.ConsulClient;
+import io.vertx.ext.consul.KeyValue;
+import io.vertx.ext.consul.KeyValueList;
+import jakarta.enterprise.event.Observes;
+import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import com.netcracker.cloud.consul.provider.common.TokenStorage;
+
+import java.util.List;
+
+@Slf4j
+public class CompositeWatcherManager {
+
+    private static final String COMPOSITE_REF_ROLE_BASE_PATH_TEMPLATE = "config/%s/application/composite/structureRef";
+
+    private final String namespace;
+    private final ConsulClientFactory consulClientFactory;
+    private final TokenStorage consulTokenStorage;
+
+    private CompositeWatcher watcher;
+
+    public CompositeWatcherManager(String namespace, ConsulClientFactory consulClientFactory, TokenStorage consulTokenStorage) {
+        this.namespace = namespace;
+        this.consulClientFactory = consulClientFactory;
+        this.consulTokenStorage = consulTokenStorage;
+    }
+
+    void onStart(@Observes StartupEvent ev) {
+        ConsulClient client = consulClientFactory.create(null);//todo vlla
+
+        watcher = new CompositeWatcher(client, COMPOSITE_REF_ROLE_BASE_PATH_TEMPLATE.formatted(namespace));
+        watcher.start(this::handleChange);
+    }
+
+    void onStop(@Observes ShutdownEvent ev) {
+        if (watcher != null) {
+            watcher.close();
+        }
+        log.info("CompositeWatcherManager stopped");
+    }
+
+    private void handleChange(KeyValueList kvs) {
+        List<KeyValue> list = kvs.getList();
+        long index = kvs.getIndex();
+        log.info("Consul change detected (index={}, keys={})", index,
+                list == null ? 0 : list.size());
+
+        if (list != null) {
+            for (KeyValue kv : list) {
+                String key = kv.getKey();
+                String val = kv.getValue();
+                log.debug("VLLA KV: {} = {}", key, val);
+            }
+        }
+    }
+}
