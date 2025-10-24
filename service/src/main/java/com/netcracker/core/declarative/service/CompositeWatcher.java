@@ -3,7 +3,7 @@ package com.netcracker.core.declarative.service;
 import io.vertx.ext.consul.BlockingQueryOptions;
 import io.vertx.ext.consul.ConsulClient;
 import io.vertx.ext.consul.KeyValueList;
-import org.jboss.logging.Logger;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Objects;
 import java.util.concurrent.Executors;
@@ -12,11 +12,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+@Slf4j
 public final class CompositeWatcher implements AutoCloseable {
-    private static final Logger log = Logger.getLogger(CompositeWatcher.class);
 
     private final ConsulClient client;
-    private final String prefix; // должен заканчиваться на '/'
+    private final String prefix;
     private final ScheduledExecutorService scheduler;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -40,11 +40,12 @@ public final class CompositeWatcher implements AutoCloseable {
     public void start(Consumer<KeyValueList> onChange) {
         Objects.requireNonNull(onChange, "onChange");
         if (!running.compareAndSet(false, true)) return;
-        log.infof("Starting Consul watcher for '%s'", prefix);
+        log.info("Starting Consul watcher for '{}'", prefix);
         watchLoop(onChange, null, 0L);
     }
 
     private void watchLoop(Consumer<KeyValueList> onChange, Long lastIndex, long backoffMs) {
+        log.debug("VLLA watchLoop lastIndex = {}", lastIndex);
         if (!running.get()) return;
 
         BlockingQueryOptions opts = new BlockingQueryOptions()
@@ -58,8 +59,7 @@ public final class CompositeWatcher implements AutoCloseable {
 
             if (ar.failed()) {
                 long next = Math.min(backoffMs == 0 ? 500L : Math.min(backoffMs * 2, 5000L), 5000L);
-                log.warnf("Consul watch error on '%s': %s (retry in %d ms)",
-                        prefix, ar.cause().toString(), next);
+                log.warn("Consul watch error on '{}': {} (retry in {} ms)", prefix, ar.cause().toString(), next);
                 scheduler.schedule(() -> watchLoop(onChange, lastIndex, next), next, TimeUnit.MILLISECONDS);
                 return;
             }
@@ -67,6 +67,8 @@ public final class CompositeWatcher implements AutoCloseable {
             KeyValueList kvs = ar.result();
             Long returnedIndex = kvs.getIndex();
             Long newIndex = (returnedIndex != null ? returnedIndex : lastIndex);
+
+            log.debug("VLLA get KeyValueList = {}", kvs);
 
             if (returnedIndex != null && (lastIndex == null || returnedIndex > lastIndex)) {
                 try {
@@ -76,7 +78,7 @@ public final class CompositeWatcher implements AutoCloseable {
                 }
             }
 
-            // немедленно продолжаем цикл — следующий blocking-запрос
+            log.debug("VLLA scheduler next");
             scheduler.execute(() -> watchLoop(onChange, newIndex, 0L));
         });
     }
@@ -84,7 +86,7 @@ public final class CompositeWatcher implements AutoCloseable {
     @Override
     public void close() {
         if (!running.compareAndSet(true, false)) return;
-        log.infof("Stopping Consul watcher for '%s'", prefix);
+        log.info("Stopping Consul watcher for '{}'", prefix);
         scheduler.shutdownNow();
         try {
             client.close();
