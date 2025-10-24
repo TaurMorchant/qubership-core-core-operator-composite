@@ -48,8 +48,10 @@ public final class CompositeWatcher implements AutoCloseable {
         if (!running.get()) return;
 
         BlockingQueryOptions opts = new BlockingQueryOptions()
-                .setIndex(lastIndex)   // X-Consul-Index из предыдущего ответа
-                .setWait("10m");       // максимум для blocking query
+                .setWait("10m");
+        if (lastIndex != null) {
+            opts.setIndex(lastIndex);
+        }
 
         client.getValuesWithOptions(prefix, opts, ar -> {
             if (!running.get()) return;
@@ -63,10 +65,12 @@ public final class CompositeWatcher implements AutoCloseable {
             }
 
             KeyValueList kvs = ar.result();
-            Long newIndex = kvs.getIndex();
-            if (newIndex != null && (lastIndex == null || newIndex > lastIndex)) {
+            Long returnedIndex = kvs.getIndex();
+            Long newIndex = (returnedIndex != null ? returnedIndex : lastIndex);
+
+            if (returnedIndex != null && (lastIndex == null || returnedIndex > lastIndex)) {
                 try {
-                    onChange.accept(kvs); // kvs.getList(): List<KeyValue>
+                    onChange.accept(kvs);
                 } catch (Throwable handlerEx) {
                     log.error("Error in onChange handler", handlerEx);
                 }
@@ -77,15 +81,14 @@ public final class CompositeWatcher implements AutoCloseable {
         });
     }
 
-
     @Override
     public void close() {
         if (!running.compareAndSet(true, false)) return;
         log.infof("Stopping Consul watcher for '%s'", prefix);
+        scheduler.shutdownNow();
         try {
             client.close();
         } catch (Exception ignore) {
         }
     }
 }
-
