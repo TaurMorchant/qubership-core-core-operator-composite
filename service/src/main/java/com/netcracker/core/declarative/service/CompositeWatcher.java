@@ -45,14 +45,12 @@ public final class CompositeWatcher implements AutoCloseable {
     }
 
     private void watchLoop(Consumer<KeyValueList> onChange, Long lastIndex, long backoffMs) {
-        log.debug("VLLA watchLoop lastIndex = {}", lastIndex);
         if (!running.get()) return;
 
-        BlockingQueryOptions opts = new BlockingQueryOptions()
-                .setWait("10m");
-        if (lastIndex != null) {
-            opts.setIndex(lastIndex);
-        }
+        BlockingQueryOptions opts = new BlockingQueryOptions().setWait("10m");
+
+        long effectiveIndex = (lastIndex == null ? 0L : lastIndex);
+        opts.setIndex(effectiveIndex);
 
         client.getValuesWithOptions(prefix, opts, ar -> {
             if (!running.get()) return;
@@ -66,11 +64,10 @@ public final class CompositeWatcher implements AutoCloseable {
 
             KeyValueList kvs = ar.result();
             Long returnedIndex = kvs.getIndex();
-            Long newIndex = (returnedIndex != null ? returnedIndex : lastIndex);
 
             log.debug("VLLA get KeyValueList = {}", kvs);
 
-            if (returnedIndex != null && (lastIndex == null || returnedIndex > lastIndex)) {
+            if (lastIndex == null || returnedIndex > lastIndex) {
                 try {
                     onChange.accept(kvs);
                 } catch (Throwable handlerEx) {
@@ -78,8 +75,7 @@ public final class CompositeWatcher implements AutoCloseable {
                 }
             }
 
-            log.debug("VLLA scheduler next");
-            scheduler.execute(() -> watchLoop(onChange, newIndex, 0L));
+            scheduler.execute(() -> watchLoop(onChange, returnedIndex, 0L));
         });
     }
 
