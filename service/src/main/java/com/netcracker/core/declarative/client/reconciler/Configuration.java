@@ -1,6 +1,11 @@
 package com.netcracker.core.declarative.client.reconciler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.netcracker.cloud.consul.provider.common.TokenStorage;
+import com.netcracker.core.declarative.client.rest.CompositeClient;
+import com.netcracker.core.declarative.client.rest.DeclarativeClient;
+import com.netcracker.core.declarative.client.rest.deprecated.MeshClientV3;
+import com.netcracker.core.declarative.service.*;
 import io.quarkus.arc.DefaultBean;
 import io.quarkus.restclient.runtime.QuarkusRestClientBuilder;
 import io.vertx.ext.consul.ConsulClient;
@@ -13,11 +18,6 @@ import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
-import com.netcracker.cloud.consul.provider.common.TokenStorage;
-import com.netcracker.core.declarative.client.rest.CompositeClient;
-import com.netcracker.core.declarative.client.rest.DeclarativeClient;
-import com.netcracker.core.declarative.client.rest.deprecated.MeshClientV3;
-import com.netcracker.core.declarative.service.*;
 
 import java.net.URI;
 import java.net.URL;
@@ -116,18 +116,33 @@ public class Configuration {
     public ConsulClientFactory consulClientFactory(Vertx vertx,
                                                    @ConfigProperty(name = "quarkus.consul-source-config.agent.url") URL consulUrl,
                                                    @ConfigProperty(name = "cloud.composite.structure.consul.update-timeout") Long timeout) {
-        return token ->
-                ConsulClient.create(vertx.getDelegate(), new ConsulClientOptions()
-                        .setHost(consulUrl.getHost())
-                        .setPort(consulUrl.getPort())
-                        .setTimeout(timeout)
-//                        .setAclToken(token) //tod vlla
+        return new ConsulClientFactory() {
+            @Override
+            public ConsulClient create(String token) {
+                return ConsulClient.create(vertx.getDelegate(), new ConsulClientOptions()
+                                .setHost(consulUrl.getHost())
+                                .setPort(consulUrl.getPort())
+                                .setTimeout(timeout)
+                                .setAclToken(token)
                 );
+            }
+
+            @Override
+            public ConsulClient create(String token, long timeout) {
+                return ConsulClient.create(vertx.getDelegate(), new ConsulClientOptions()
+                                .setHost(consulUrl.getHost())
+                                .setPort(consulUrl.getPort())
+                                .setTimeout(timeout)
+                                .setAclToken(token)
+                );
+            }
+        };
     }
 
     @Produces
     @ApplicationScoped
-    public TenantService tenantService(ConsulClientFactory consulClientFactory, Instance<TokenStorage> consulTokenStorage) {
+    public TenantService tenantService(ConsulClientFactory
+                                               consulClientFactory, Instance<TokenStorage> consulTokenStorage) {
         return new TenantService(consulClientFactory, consulTokenStorage.get());
     }
 

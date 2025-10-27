@@ -6,7 +6,6 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
-import jakarta.inject.Inject;
 
 import io.vertx.ext.consul.BlockingQueryOptions;
 import io.vertx.ext.consul.ConsulClient;
@@ -26,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class CompositeWatcher {
 
     private static final String STRUCTURE_REF_TEMPLATE = "config/%s/application/composite/structureRef";
-    private static final String WAIT = "10m";              // Consul long-poll cap
+    private static final String WAIT = "9s";              // Consul long-poll cap
     private static final long MAX_BACKOFF_MS = 30_000L;   // 30s
 
     private final String namespace;
@@ -55,7 +54,7 @@ public class CompositeWatcher {
                             ConsulClientFactory consulClientFactory,
                             Instance<TokenStorage> consulTokenStorage) {
         this.namespace = namespace;
-        this.consul = consulClientFactory.create(consulTokenStorage.get().get());
+        this.consul = consulClientFactory.create(consulTokenStorage.get().get(), 10 * 1000);
     }
 
     @PostConstruct
