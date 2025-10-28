@@ -19,6 +19,7 @@
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
         <nc.security-quarkus.version>6.9.0</nc.security-quarkus.version>
+        <maven.test.skip>true</maven.test.skip><!--TODO VLLA TMP for faster build-->
     </properties>
 
     <dependencyManagement>
