@@ -39,10 +39,12 @@ public class DeclarativeKubernetesClient {
                                         String data,
                                         Map<String, String> labels) {
         ConfigMap cm = new ConfigMapBuilder()
+                .withApiVersion("core.qubership.org/v1")
+                .withKind("ConfigMap")
                 .withNewMetadata()
-                .withName(name)
-                .withNamespace(namespace)
-                .withLabels(labels)
+                    .withName(name)
+                    .withNamespace(namespace)
+                    .withLabels(labels)
                 .endMetadata()
                 .addToData("compositeStructure", data)
                 .build();

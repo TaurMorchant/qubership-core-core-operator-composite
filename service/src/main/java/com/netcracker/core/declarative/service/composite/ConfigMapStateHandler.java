@@ -7,12 +7,14 @@ import io.vertx.core.Vertx;
 import io.vertx.core.WorkerExecutor;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 @ApplicationScoped
+@Slf4j
 public class ConfigMapStateHandler implements StructureStateHandler {
     private final DeclarativeKubernetesClient k8s;
     private final String namespace;
@@ -34,9 +36,11 @@ public class ConfigMapStateHandler implements StructureStateHandler {
 
     @Override
     public void handle(StructureState state, KvLongPoller.IndexPair idx, boolean initial) {
+        log.info("VLLA ConfigMapStateHandler handle");
         // 1) сериализация состояния
         String json = state.data().toString();
 
+        //todo vlla кажется не срабатывает в первый раз
         // 2) простейший коалесинг (не пишем, если значение не изменилось)
         String prev = lastJson.getAndSet(json);
         if (prev != null && prev.equals(json) && !initial) {
