@@ -38,6 +38,7 @@ public class DeclarativeKubernetesClient {
                                         String namespace,
                                         String data,
                                         Map<String, String> labels) {
+        log.info("VLLA createOrUpdateConfigMap data={}", data);
         ConfigMap cm = new ConfigMapBuilder()
                 .withApiVersion("core.qubership.org/v1")
                 .withKind("ConfigMap")
@@ -45,13 +46,16 @@ public class DeclarativeKubernetesClient {
                     .withName(name)
                     .withNamespace(namespace)
                     .withLabels(labels)
+                    .addToAnnotations("app.kubernetes.io/managed-by", "core-operator")
                 .endMetadata()
                 .addToData("compositeStructure", data)
                 .build();
 
         ConfigMap result = client.configMaps()
                 .inNamespace(namespace)
-                .resource(cm).serverSideApply();
+                .resource(cm)
+                .fieldManager("core-operator")
+                .serverSideApply();
 
         log.info("VLLA createOrUpdateConfigMap result = {}", result);
     }
