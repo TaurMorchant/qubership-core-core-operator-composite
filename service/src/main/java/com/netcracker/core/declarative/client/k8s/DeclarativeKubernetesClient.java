@@ -40,8 +40,6 @@ public class DeclarativeKubernetesClient {
                                         Map<String, String> labels) {
         log.info("VLLA createOrUpdateConfigMap data={}", data);
         ConfigMap cm = new ConfigMapBuilder()
-                .withApiVersion("core.qubership.org/v1")
-                .withKind("ConfigMap")
                 .withNewMetadata()
                     .withName(name)
                     .withNamespace(namespace)
