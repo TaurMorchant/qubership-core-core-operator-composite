@@ -20,7 +20,7 @@ public class ConfigMapStateHandler implements StructureStateHandler {
     private final String namespace;
     private final AtomicReference<String> lastJson = new AtomicReference<>();
 
-    private static final String CM_NAME = "VLLA-TEST-CONFIG-MAP";
+    private static final String CM_NAME = "vlla-test-config-map";
 
     ExecutorService k8sWrites = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "core-operator-k8s-writes");
