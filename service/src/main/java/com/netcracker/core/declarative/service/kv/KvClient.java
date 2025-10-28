@@ -20,9 +20,10 @@ public interface KvClient {
      * @param wait     желаемый timeout long-poll
      * @param handler  (result, error) колбэк
      */
-    void getValues(String path, long index, Duration wait,
-                   BiConsumer<KeyValueList, Throwable> handler);
+    void awaitChanges(String path, long index, Duration wait,
+                      BiConsumer<KeyValueList, Throwable> handler);
 
+    //todo vlla not needed?
     /** Утилита для обёрток handler’а. */
     static BiConsumer<KeyValueList, Throwable> safe(BiConsumer<KeyValueList, Throwable> h) {
         return Objects.requireNonNull(h);

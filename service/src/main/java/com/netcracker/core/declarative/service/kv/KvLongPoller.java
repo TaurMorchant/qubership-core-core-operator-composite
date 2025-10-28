@@ -98,7 +98,7 @@ public final class KvLongPoller implements AutoCloseable {
         final long prev = index.get();
         final Duration wait = cfg.getWait();
 
-        client.getValues(path, prev, wait, KvClient.safe((list, err) -> {
+        client.awaitChanges(path, prev, wait, KvClient.safe((list, err) -> {
             if (isSchedulerClosed() || state == State.STOPPED) return;
 
             if (err == null) {

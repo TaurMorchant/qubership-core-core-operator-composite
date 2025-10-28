@@ -41,11 +41,12 @@ public class CompositeWatcher {
 
     public CompositeWatcher(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
                             ConsulClientFactory consulClientFactory,
-                            Instance<TokenStorage> tokenStorage) {
+                            Instance<TokenStorage> tokenStorage,
+                            ConfigMapStateHandler configMapStateHandler) {
         this.namespace = Objects.requireNonNull(namespace, "namespace");
         this.consul = Objects.requireNonNull(
                 consulClientFactory.create(tokenStorage.get().get(), 10_000), "consul");
-        this.stateHandler = new LogStateHandler();
+        this.stateHandler = configMapStateHandler;
     }
 
     @PostConstruct

@@ -17,7 +17,7 @@ public final class VertxKvClient implements KvClient {
     }
 
     @Override
-    public void getValues(String path, long index, Duration wait, BiConsumer<KeyValueList, Throwable> handler) {
+    public void awaitChanges(String path, long index, Duration wait, BiConsumer<KeyValueList, Throwable> handler) {
         final BlockingQueryOptions bq = new BlockingQueryOptions()
                 .setIndex(index)
                 .setWait(format(wait));
