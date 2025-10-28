@@ -23,18 +23,17 @@ import java.util.concurrent.*;
 @Slf4j
 public class CompositeWatcher {
 
-    private static final String STRUCTURE_REF_TEMPLATE = "config/%s/application/composite/structureRef";
+    private static final String COMPOSITE_STRUCTURE_REF_TEMPLATE = "config/%s/application/composite/structureRef";
 
     private final String namespace;
-    private final ConsulClient consul;
+    private final ConsulClient consulClient;
     private final StructurePrefixResolver prefixResolver = new StructurePrefixResolver();
-    private final StructureStateBuilder stateBuilder = new StructureStateBuilder();
-    private final StructureStateHandler stateHandler; // инжектируйте свою реализацию
+    private final StructureStateHandler stateHandler;
 
     // инфраструктура
     private ScheduledExecutorService scheduler;
-    private KvLongPoller structureRefPoller;
-    private KvLongPoller structurePoller;
+    private KvLongPoller compositeStructureRefPoller;
+    private KvLongPoller compositeStructurePoller;
 
     // текущее наблюдаемое состояние
     private volatile String currentPrefix;
@@ -44,8 +43,8 @@ public class CompositeWatcher {
                             Instance<TokenStorage> tokenStorage,
                             ConfigMapStateHandler configMapStateHandler) {
         this.namespace = Objects.requireNonNull(namespace, "namespace");
-        this.consul = Objects.requireNonNull(
-                consulClientFactory.create(tokenStorage.get().get(), 10_000), "consul");
+        this.consulClient = Objects.requireNonNull(
+                consulClientFactory.create(tokenStorage.get().get(), 60 * 1000), "consul");
         this.stateHandler = configMapStateHandler;
     }
 
@@ -59,35 +58,35 @@ public class CompositeWatcher {
             return t;
         });
 
-        final KvClient kv = new VertxKvClient(consul);
+        final KvWatcher kv = new ConsulKvWatcher(consulClient);
         final KvPollConfig cfg = KvPollConfig.builder()
-                .wait(Duration.ofSeconds(9))
+                .wait(Duration.ofSeconds(50))
                 .backoffMin(Duration.ofSeconds(1))
                 .backoffMax(Duration.ofSeconds(30))
                 .initialDelay(Duration.ZERO)
                 .fireOnFirstSuccess(true)
                 .build();
 
-        final String structureRefKey = STRUCTURE_REF_TEMPLATE.formatted(namespace);
-        log.info("CompositeWatcher start: structureRef='{}'", structureRefKey);
+        final String compositeStructureRefKey = COMPOSITE_STRUCTURE_REF_TEMPLATE.formatted(namespace);
+        log.info("CompositeWatcher start: structureRef='{}'", compositeStructureRefKey);
 
         // 1) Поллер за ключом structureRef
-        this.structureRefPoller = KvLongPoller.builder()
-                .path(structureRefKey)
+        this.compositeStructureRefPoller = KvLongPoller.builder()
+                .path(compositeStructureRefKey)
                 .client(kv)
                 .scheduler(scheduler)
                 .cfg(cfg)
                 .onState(s -> log.debug("structureRef poller state={}", s))
-                .onSnapshot((list, idx) -> onStructureRefSnapshot(structureRefKey, list, idx))
+                .onSnapshot(list -> onCompositeStructureRefSnapshot(compositeStructureRefKey, list))
                 .build();
-        structureRefPoller.start();
+        compositeStructureRefPoller.start();
     }
 
     @PreDestroy
     void stop() {
         try {
-            if (structureRefPoller != null) structureRefPoller.stop();
-            if (structurePoller != null) structurePoller.stop();
+            if (compositeStructureRefPoller != null) compositeStructureRefPoller.stop();
+            if (compositeStructurePoller != null) compositeStructurePoller.stop();
         } finally {
             if (scheduler != null) {
                 scheduler.shutdownNow();
@@ -98,20 +97,20 @@ public class CompositeWatcher {
         log.info("CompositeWatcher stopped.");
     }
 
-    private void onStructureRefSnapshot(String refKey, KeyValueList list, KvLongPoller.IndexPair idx) {
-        final String newPrefix = prefixResolver.resolve(list, refKey).orElse(null);
-        log.info("structureRef observed {} -> {}, prefix='{}'", idx.prev(), idx.now(), newPrefix);
-        switchStructurePrefix(newPrefix);
+    private void onCompositeStructureRefSnapshot(String refKey, KeyValueList list) {
+        final String newCompositeStructurePrefix = prefixResolver.resolve(list, refKey).orElse(null);
+        log.info("Current composite structure ref = '{}'", newCompositeStructurePrefix);
+        startWatchCompositeStructure(newCompositeStructurePrefix);
     }
 
-    private void switchStructurePrefix(String newPrefix) {
+    private void startWatchCompositeStructure(String newPrefix) {
         if (Objects.equals(currentPrefix, newPrefix)) {
             log.debug("structureRef unchanged: '{}'", newPrefix);
             return;
         }
-        if (structurePoller != null) {
-            structurePoller.stop();
-            structurePoller = null;
+        if (compositeStructurePoller != null) {
+            compositeStructurePoller.stop();
+            compositeStructurePoller = null;
         }
         currentPrefix = newPrefix;
 
@@ -122,9 +121,9 @@ public class CompositeWatcher {
 
         log.info("Switching structure polling to prefix='{}'", newPrefix);
 
-        final KvClient kv = new VertxKvClient(consul);
+        final KvWatcher kv = new ConsulKvWatcher(consulClient);
         final KvPollConfig cfg = KvPollConfig.builder()
-                .wait(Duration.ofSeconds(9))
+                .wait(Duration.ofSeconds(50))
                 .backoffMin(Duration.ofSeconds(1))
                 .backoffMax(Duration.ofSeconds(30))
                 .initialDelay(Duration.ZERO)
@@ -132,18 +131,18 @@ public class CompositeWatcher {
                 .build();
 
         // 2) Поллер по префиксу структуры — никакого diff: каждый снимок → полное состояние
-        this.structurePoller = KvLongPoller.builder()
+        this.compositeStructurePoller = KvLongPoller.builder()
                 .path(newPrefix)
                 .client(kv)
                 .scheduler(scheduler)
                 .cfg(cfg)
                 .onState(s -> log.debug("structure poller state={}", s))
-                .onSnapshot((list, idx) -> {
-                    boolean initial = (idx.prev() == 0); // первый успешный снапшот после переключения
-                    StructureState state = stateBuilder.build(newPrefix, list);
-                    stateHandler.handle(state, idx, initial);
+                .onSnapshot(list -> {
+//                    boolean initial = (idx.prev() == 0); // первый успешный снапшот после переключения
+                    CompositeStructureState state = CompositeStructureState.from(list);
+                    stateHandler.handle(state);
                 })
                 .build();
-        structurePoller.start();
+        compositeStructurePoller.start();
     }
 }

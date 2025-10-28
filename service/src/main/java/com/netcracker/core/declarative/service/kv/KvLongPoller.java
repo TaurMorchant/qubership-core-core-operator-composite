@@ -22,16 +22,16 @@ import java.util.function.Consumer;
 @Slf4j
 public final class KvLongPoller implements AutoCloseable {
 
-    public enum State { NEW, RUNNING, BACKING_OFF, STOPPED }
-    public record IndexPair(long prev, long now) {}
+    public enum State {NEW, RUNNING, BACKING_OFF, STOPPED}
 
-    @Getter private final String path;
-    private final KvClient client;
+    @Getter
+    private final String path;
+    private final KvWatcher client;
     private final ScheduledExecutorService scheduler;
     private final KvPollConfig cfg;
     private final BackoffStrategy backoff;
 
-    private final BiConsumer<KeyValueList, IndexPair> onSnapshot;
+    private final Consumer<KeyValueList> onSnapshot;
     private final Consumer<State> onState;
 
     private final AtomicLong index = new AtomicLong(0);
@@ -43,11 +43,11 @@ public final class KvLongPoller implements AutoCloseable {
 
     @Builder
     private KvLongPoller(String path,
-                         KvClient client,
+                         KvWatcher client,
                          ScheduledExecutorService scheduler,
                          KvPollConfig cfg,
                          BackoffStrategy backoff,
-                         BiConsumer<KeyValueList, IndexPair> onSnapshot,
+                         Consumer<KeyValueList> onSnapshot,
                          Consumer<State> onState) {
         this.path = Objects.requireNonNull(path, "path");
         this.client = Objects.requireNonNull(client, "client");
@@ -55,7 +55,8 @@ public final class KvLongPoller implements AutoCloseable {
         this.cfg = (cfg != null ? cfg : KvPollConfig.builder().build());
         this.backoff = (backoff != null ? backoff : new ExponentialJitterBackoff());
         this.onSnapshot = Objects.requireNonNull(onSnapshot, "onSnapshot");
-        this.onState = (onState != null ? onState : s -> {});
+        this.onState = (onState != null ? onState : s -> {
+        });
         validate();
     }
 
@@ -83,25 +84,37 @@ public final class KvLongPoller implements AutoCloseable {
         log.info("KV poller stopped: path='{}'", path);
     }
 
-    @Override public void close() { stop(); }
+    @Override
+    public void close() {
+        stop();
+    }
 
     private void schedule(Duration delay, Duration nextBackoff) {
-        if (isSchedulerClosed() || state == State.STOPPED) return;
+        if (isSchedulerClosed() || state == State.STOPPED) {
+            return;
+        }
         ScheduledFuture<?> f = future;
-        if (f != null) f.cancel(true);
+        if (f != null) {
+            f.cancel(true);
+        }
         future = scheduler.schedule(() -> pollOnce(nextBackoff), delay.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void pollOnce(Duration backoffDelay) {
-        if (isSchedulerClosed() || state == State.STOPPED) return;
+        if (isSchedulerClosed() || state == State.STOPPED) {
+            return;
+        }
 
         final long prev = index.get();
         final Duration wait = cfg.getWait();
 
-        client.awaitChanges(path, prev, wait, KvClient.safe((list, err) -> {
-            if (isSchedulerClosed() || state == State.STOPPED) return;
+        client.awaitChanges(path, prev, wait, new KvHandler() {
+            @Override
+            public void onSuccess(KeyValueList list) {
+                if (isSchedulerClosed() || state == State.STOPPED) {
+                    return;
+                }
 
-            if (err == null) {
                 final long newIdx = (list != null ? list.getIndex() : 0);
                 transition(State.RUNNING);
                 schedule(Duration.ZERO, Duration.ZERO); // следующий long-poll — сразу
@@ -109,17 +122,22 @@ public final class KvLongPoller implements AutoCloseable {
                 final boolean changed = newIdx > prev;
                 final boolean first = cfg.isFireOnFirstSuccess() && firstFired.compareAndSet(false, true);
                 if (changed || first) {
-                    if (changed) index.set(newIdx);
-                    onSnapshot.accept(list, new IndexPair(prev, newIdx));
+                    if (changed) {
+                        index.set(newIdx);
+                    }
+                    onSnapshot.accept(list);
                 }
-            } else {
+            }
+
+            @Override
+            public void onError(Throwable err) {
                 final Duration next = backoff.next(backoffDelay, cfg.getBackoffMin(), cfg.getBackoffMax());
                 transition(State.BACKING_OFF);
                 log.warn("KV poller error: path='{}', retry in {}, cause='{}'",
                         path, next, err.toString());
                 schedule(next, next);
             }
-        }));
+        });
     }
 
     private boolean isSchedulerClosed() {
@@ -127,8 +145,14 @@ public final class KvLongPoller implements AutoCloseable {
     }
 
     private void transition(State s) {
-        if (this.state == s) return;
+        if (this.state == s) {
+            return;
+        }
         this.state = s;
-        try { onState.accept(s); } catch (Throwable ignore) { /* no-op */ }
+        try {
+            onState.accept(s);
+        } catch (Exception ignore) {
+            /* no-op */
+        }
     }
 }

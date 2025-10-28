@@ -10,8 +10,6 @@ public interface StructureStateHandler {
 
     /**
      * @param state     текущее полное состояние
-     * @param idx       (prev, now) индексы Consul
-     * @param initial   true — первый успешный снимок после (ре)старта/переключения префикса
      */
-    void handle(StructureState state, KvLongPoller.IndexPair idx, boolean initial);
+    void handle(CompositeStructureState state);
 }

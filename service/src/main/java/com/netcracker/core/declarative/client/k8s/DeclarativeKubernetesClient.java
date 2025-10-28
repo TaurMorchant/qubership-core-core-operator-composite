@@ -6,12 +6,17 @@ import com.netcracker.core.declarative.resources.mesh.Mesh;
 import com.netcracker.core.declarative.resources.mesh.MeshList;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.api.model.Secret;
+import io.fabric8.kubernetes.api.model.SecretBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.MixedOperation;
 import io.fabric8.kubernetes.client.dsl.Resource;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 public class DeclarativeKubernetesClient {
@@ -56,5 +61,42 @@ public class DeclarativeKubernetesClient {
                 .serverSideApply();
 
         log.info("VLLA createOrUpdateConfigMap result = {}", result);
+    }
+
+    public void createOrUpdateSecret(String name,
+                                     String namespace,
+                                     String compositeJson,
+                                     Map<String, String> labels) {
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(namespace, "namespace");
+        Objects.requireNonNull(compositeJson, "compositeJson");
+
+        Map<String, String> effectiveLabels = (labels == null) ? Map.of() : labels;
+
+        Secret secret = new SecretBuilder()
+                .withNewMetadata()
+                .withName(name)
+                .withNamespace(namespace)
+                .withLabels(effectiveLabels)
+                .endMetadata()
+                .withType("Opaque")
+                .withStringData(Map.of("compositeStructure", compositeJson))
+                .build();
+
+        client.secrets()
+                .inNamespace(namespace)
+                .resource(secret).serverSideApply();
+    }
+
+
+    /**
+     * Чтение текущего JSON из секрета. Возвращает null, если секрета или ключа нет.
+     */
+    public String readCompositeJsonOrNull(String name, String namespace) {
+        Secret s = client.secrets().inNamespace(namespace).withName(name).get();
+        if (s == null || s.getData() == null) return null;
+        String b64 = s.getData().get("compositeStructure");
+        if (b64 == null) return null;
+        return new String(Base64.getDecoder().decode(b64));
     }
 }
