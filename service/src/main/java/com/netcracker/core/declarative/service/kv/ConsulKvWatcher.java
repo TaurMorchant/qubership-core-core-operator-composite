@@ -24,7 +24,6 @@ public final class ConsulKvWatcher implements KvWatcher {
                 .setIndex(index)
                 .setWait(format(wait));
 
-        //todo vlla use getValueWithOptions for first key? (ref to composite key)
         consulClient.getValuesWithOptions(path, bq, ar -> handle(handler, ar));
     }
 
@@ -37,8 +36,7 @@ public final class ConsulKvWatcher implements KvWatcher {
         }
     }
 
-
-    String format(Duration wait) {
+    static String format(Duration wait) {
         long seconds = Math.max(1, (long) Math.ceil(wait.toMillis() / 1000.0));
         return seconds + "s";
     }
