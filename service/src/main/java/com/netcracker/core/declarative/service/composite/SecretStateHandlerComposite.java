@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 
 @ApplicationScoped
 @Slf4j
-public class SecretStateHandler implements StructureStateHandler {
+public class SecretStateHandlerComposite implements CompositeStructureStateHandler {
     private final DeclarativeKubernetesClient k8s;
     private final String namespace;
 
@@ -24,8 +24,8 @@ public class SecretStateHandler implements StructureStateHandler {
     private final ExecutorService k8sWrites;
 
     @Inject
-    public SecretStateHandler(KubernetesClient client,
-                              @ConfigProperty(name = "cloud.microservice.namespace") String namespace) {
+    public SecretStateHandlerComposite(KubernetesClient client,
+                                       @ConfigProperty(name = "cloud.microservice.namespace") String namespace) {
         this.k8s = new DeclarativeKubernetesClient(client);
         this.namespace = namespace;
         this.k8sWrites = Executors.newSingleThreadExecutor(r -> {

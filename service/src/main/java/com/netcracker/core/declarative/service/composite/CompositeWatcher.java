@@ -24,7 +24,7 @@ public class CompositeWatcher {
 
     private static final String COMPOSITE_STRUCTURE_REF_TEMPLATE = "config/%s/application/composite/structureRef";
     private static final KvPollConfig KV_POLL_CONFIG = KvPollConfig.builder()
-            .wait(Duration.ofSeconds(50))
+            .wait(Duration.ofMinutes(9))
             .backoffMin(Duration.ofSeconds(1))
             .backoffMax(Duration.ofSeconds(30))
             .initialDelay(Duration.ZERO)
@@ -34,7 +34,7 @@ public class CompositeWatcher {
     private final String namespace;
     private final ConsulClient consulClient;
     private final StructurePrefixResolver prefixResolver = new StructurePrefixResolver();
-    private final StructureStateHandler stateHandler;
+    private final CompositeStructureStateHandler compositeStructureStateHandler;
 
     private ScheduledExecutorService scheduler;
     private KvLongPoller compositeStructureRefPoller;
@@ -45,10 +45,10 @@ public class CompositeWatcher {
     public CompositeWatcher(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
                             ConsulClientFactory consulClientFactory,
                             Instance<TokenStorage> tokenStorage,
-                            SecretStateHandler stateHandler) {
+                            SecretStateHandlerComposite compositeStructureStateHandler) {
         this.namespace = Objects.requireNonNull(namespace, "namespace");
-        this.consulClient = consulClientFactory.create(tokenStorage.get().get(), 60 * 1000);
-        this.stateHandler = stateHandler;
+        this.consulClient = consulClientFactory.create(tokenStorage.get().get(), Duration.ofMinutes(10).toMillis());
+        this.compositeStructureStateHandler = compositeStructureStateHandler;
     }
 
     @PostConstruct
@@ -137,7 +137,7 @@ public class CompositeWatcher {
                 .onSnapshot(list -> {
                     log.info("VLLA compositeStructurePoller onSnapshot");
                     CompositeStructureState state = CompositeStructureState.from(list);
-                    stateHandler.handle(state);
+                    compositeStructureStateHandler.handle(state);
                 })
                 .build();
         compositeStructurePoller.start();

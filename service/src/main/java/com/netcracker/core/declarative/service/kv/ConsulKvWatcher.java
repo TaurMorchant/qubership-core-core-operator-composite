@@ -28,6 +28,7 @@ public final class ConsulKvWatcher implements KvWatcher {
     }
 
     void handle(KvHandler handler, AsyncResult<KeyValueList> ar) {
+        log.debug("VLLA handle ar {}", ar);
         if (ar.succeeded()) {
             handler.onSuccess(ar.result());
         }

@@ -46,23 +46,31 @@ public final class KvLongPoller implements AutoCloseable {
     }
 
     private void validate() {
-        if (pollConfig.getBackoffMin().isNegative() || pollConfig.getBackoffMax().isNegative())
+        if (pollConfig.getBackoffMin().isNegative() || pollConfig.getBackoffMax().isNegative()) {
             throw new IllegalArgumentException("Backoff must be non-negative");
-        if (pollConfig.getBackoffMin().compareTo(pollConfig.getBackoffMax()) > 0)
+        }
+        if (pollConfig.getBackoffMin().compareTo(pollConfig.getBackoffMax()) > 0) {
             throw new IllegalArgumentException("backoffMin must be <= backoffMax");
-        if (!pollConfig.getWait().isPositive())
+        }
+        if (!pollConfig.getWait().isPositive()) {
             throw new IllegalArgumentException("wait must be > 0");
+        }
     }
 
     public void start() {
-        if (!started.compareAndSet(false, true)) return;
+        if (started.get()) {
+            return;
+        }
+        started.set(true);
         schedule(pollConfig.getInitialDelay(), Duration.ZERO);
         log.info("KV poller started: path='{}', cfg={}", path, pollConfig);
     }
 
     public void stop() {
         ScheduledFuture<?> f = future;
-        if (f != null) f.cancel(true);
+        if (f != null) {
+            f.cancel(true);
+        }
         future = null;
         log.info("KV poller stopped: path='{}'", path);
     }
@@ -114,8 +122,7 @@ public final class KvLongPoller implements AutoCloseable {
             @Override
             public void onError(Throwable err) {
                 final Duration next = backoff.next(backoffDelay, pollConfig.getBackoffMin(), pollConfig.getBackoffMax());
-                log.warn("KV poller error: path='{}', retry in {}, cause='{}'",
-                        path, next, err.toString());
+                log.warn("KV poller error: path='{}', retry in {}, cause='{}'", path, next, err.toString());
                 schedule(next, next);
             }
         });
