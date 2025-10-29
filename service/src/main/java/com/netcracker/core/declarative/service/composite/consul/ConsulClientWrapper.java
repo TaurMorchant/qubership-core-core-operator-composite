@@ -22,7 +22,7 @@ public final class ConsulClientWrapper implements ConsulClient {
     @Inject
     public ConsulClientWrapper(ConsulClientFactory consulClientFactory,
                                Instance<TokenStorage> tokenStorage) {
-        this.delegate = consulClientFactory.create(tokenStorage.get().get());
+        this.delegate = consulClientFactory.create(tokenStorage.get().get(), Duration.ofMinutes(10).toMillis());
     }
 
     @Override
