@@ -44,7 +44,7 @@ public class ConsulPrefixSnapshot {
             return MAPPER.writeValueAsString(keyValueMap);
         }
         catch (JsonProcessingException e) {
-            throw new RuntimeException("Unexpected exception during toJson transformation", e);
+            throw new ConsulSnapshotSerializationException("Unexpected exception during toJson transformation", e);
         }
     }
 }

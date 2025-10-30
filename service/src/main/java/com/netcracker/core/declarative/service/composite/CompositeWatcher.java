@@ -44,11 +44,11 @@ public class CompositeWatcher {
 
     @PostConstruct
     void start() {
-        startCompositeStructureRefLongPool();
+        startCompositeStructureRefLongPoll();
     }
 
-    void startCompositeStructureRefLongPool() {
-        log.info("CompositeWatcher start: structureRef='{}'", compositeStructureRefKey);
+    void startCompositeStructureRefLongPoll() {
+        log.info("CompositeWatcher start. Composite Structure ref key = '{}'", compositeStructureRefKey);
 
         this.compositeStructureRefPoller = ConsulLongPoller.builder()
                 .path(compositeStructureRefKey)
@@ -72,7 +72,7 @@ public class CompositeWatcher {
 
     private void onCompositeStructureRefSnapshot(ConsulPrefixSnapshot snapshot) {
         final String compositeStructurePrefix = snapshot.getValue(compositeStructureRefKey);
-        log.info("Current composite structure ref = '{}'", compositeStructurePrefix);
+        log.info("Current composite structure prefix = '{}'", compositeStructurePrefix);
         startWatchCompositeStructure(compositeStructurePrefix);
     }
 
@@ -92,7 +92,7 @@ public class CompositeWatcher {
             return;
         }
 
-        log.info("Switching structure polling to prefix='{}'", newCompositeStructureConsulPrefix);
+        log.info("Switching composite structure polling to prefix = '{}'", newCompositeStructureConsulPrefix);
 
         this.compositeStructurePoller = ConsulLongPoller.builder()
                 .path(newCompositeStructureConsulPrefix)

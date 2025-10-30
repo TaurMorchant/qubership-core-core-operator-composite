@@ -40,7 +40,7 @@ public final class ConsulLongPoller implements AutoCloseable {
             return;
         }
         scheduleNextPoll(Duration.ZERO);
-        log.info("KV poller started: path='{}', cfg={}", path, pollConfig);
+        log.info("Long Poller started: path='{}', cfg={}", path, pollConfig);
     }
 
     public void stop() {
@@ -48,7 +48,7 @@ public final class ConsulLongPoller implements AutoCloseable {
             return;
         }
         pollScheduler.stop();
-        log.info("KV poller stopped: path='{}'", path);
+        log.info("Long Poller stopped: path='{}'", path);
     }
 
     @Override
@@ -68,7 +68,15 @@ public final class ConsulLongPoller implements AutoCloseable {
         final long currentIndex = pollSession.currentIndex();
         final Duration wait = pollConfig.getWait();
 
-        consulClient.awaitChanges(path, currentIndex, wait, new PollResultHandlerImpl(currentIndex));
+        try {
+            consulClient.awaitChanges(path, currentIndex, wait, new PollResultHandlerImpl(currentIndex));
+        } catch (Exception err) {
+            if (pollScheduler.isClosed()) {
+                return;
+            }
+            log.warn("Long Poller invocation failed: path='{}', retry in {}", path, DELAY_ON_ERROR, err);
+            scheduleNextPoll(DELAY_ON_ERROR);
+        }
     }
 
 
@@ -95,7 +103,7 @@ public final class ConsulLongPoller implements AutoCloseable {
 
         @Override
         public void onError(Throwable err) {
-            log.warn("KV poller error: path='{}', retry in {}, cause='{}'", path, DELAY_ON_ERROR, err.toString());
+            log.warn("Long Poller error: path='{}', retry in {}", path, DELAY_ON_ERROR, err);
             scheduleNextPoll(DELAY_ON_ERROR);
         }
     }

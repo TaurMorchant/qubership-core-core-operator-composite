@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +16,7 @@ public final class PollScheduler {
     private static final AtomicLong THREAD_SEQ = new AtomicLong();
 
     private final ScheduledExecutorService executor;
+    private final Object lock = new Object();
     private ScheduledFuture<?> future;
 
     public PollScheduler(String threadName) {
@@ -28,23 +30,32 @@ public final class PollScheduler {
     }
 
     public void schedule(Duration delay, Runnable task) {
-        if (isClosed()) {
-            return;
+        synchronized (lock) {
+            if (isClosed()) {
+                return;
+            }
+            ScheduledFuture<?> current = future;
+            if (current != null) {
+                current.cancel(true);
+            }
+            try {
+                future = executor.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (RejectedExecutionException ex) {
+                log.debug("Poll scheduler is already shut down, skipping reschedule", ex);
+                future = null;
+            }
         }
-        ScheduledFuture<?> current = future;
-        if (current != null) {
-            current.cancel(true);
-        }
-        future = executor.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     public void stop() {
-        ScheduledFuture<?> current = future;
-        if (current != null) {
-            current.cancel(true);
+        synchronized (lock) {
+            ScheduledFuture<?> current = future;
+            if (current != null) {
+                current.cancel(true);
+            }
+            future = null;
+            executor.shutdownNow();
         }
-        future = null;
-        executor.shutdownNow();
     }
 
     public boolean isClosed() {
@@ -52,7 +63,7 @@ public final class PollScheduler {
     }
 
     private static String resolveThreadName(String path) {
-        String sanitized = path.replaceAll("[^a-zA-Z0-9-_]", "-");
+        String sanitized = path.replaceAll("[^a-zA-Z0-9\\-_]", "-");
         long id = THREAD_SEQ.incrementAndGet();
         return THREAD_NAME_TEMPLATE.formatted(sanitized, id);
     }
