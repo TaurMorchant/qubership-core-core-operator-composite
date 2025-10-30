@@ -19,7 +19,7 @@ import java.util.Objects;
 
 @Slf4j
 public class DeclarativeKubernetesClient {
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH:mm:ss");
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
     final KubernetesClient client;
 
