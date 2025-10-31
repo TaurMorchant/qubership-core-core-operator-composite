@@ -1,10 +1,10 @@
 package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.service.composite.consul.ConsulClient;
-import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
 import com.netcracker.core.declarative.service.composite.consul.ConsulSnapshotHandler;
 import com.netcracker.core.declarative.service.composite.consul.longpoll.ConsulLongPoller;
 import com.netcracker.core.declarative.service.composite.consul.longpoll.LongPollConfig;
+import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
 import io.quarkus.runtime.Startup;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

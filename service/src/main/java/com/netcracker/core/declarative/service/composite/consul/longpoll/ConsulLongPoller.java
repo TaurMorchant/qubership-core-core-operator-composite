@@ -74,7 +74,8 @@ public final class ConsulLongPoller implements AutoCloseable {
             if (pollScheduler.isClosed()) {
                 return;
             }
-            log.warn("Long Poller invocation failed: path='{}', retry in {}", path, DELAY_ON_ERROR, err);
+            String reason = err.getMessage();
+            log.warn("Long Poller invocation failed: path='{}', retry in {} (reason: {})", path, DELAY_ON_ERROR, reason);
             scheduleNextPoll(DELAY_ON_ERROR);
         }
     }
@@ -103,7 +104,8 @@ public final class ConsulLongPoller implements AutoCloseable {
 
         @Override
         public void onError(Throwable err) {
-            log.warn("Long Poller error: path='{}', retry in {}", path, DELAY_ON_ERROR, err);
+            String reason = (err != null ? err.getMessage() : "unknown error");
+            log.warn("Long Poller error: path='{}', retry in {} (reason: {})", path, DELAY_ON_ERROR, reason);
             scheduleNextPoll(DELAY_ON_ERROR);
         }
     }

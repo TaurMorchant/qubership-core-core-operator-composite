@@ -1,19 +1,11 @@
 package com.netcracker.core.declarative.service.composite.consul.model;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import io.vertx.ext.consul.KeyValue;
 import io.vertx.ext.consul.KeyValueList;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 public class ConsulPrefixSnapshot {
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 
     private final KeyValueList keyValueList;
     private final Map<String, String> keyValueMap;
@@ -22,10 +14,16 @@ public class ConsulPrefixSnapshot {
         this.keyValueList = keyValueList;
         this.keyValueMap = new TreeMap<>();
 
-        final List<KeyValue> entries = (keyValueList != null && keyValueList.getList() != null) ? keyValueList.getList() : Collections.emptyList();
+        final List<KeyValue> entries = (keyValueList != null && keyValueList.getList() != null) ?
+                keyValueList.getList() :
+                Collections.emptyList();
         for (KeyValue kv : entries) {
             keyValueMap.put(kv.getKey(), kv.getValue());
         }
+    }
+
+    public Set<String> getKeySet() {
+        return Collections.unmodifiableSet(keyValueMap.keySet());
     }
 
     public long getIndex() {
@@ -34,17 +32,8 @@ public class ConsulPrefixSnapshot {
         }
         return keyValueList.getIndex();
     }
-    
+
     public String getValue(String key) {
         return keyValueMap.get(key);
-    }
-
-    public String toJson() {
-        try {
-            return MAPPER.writeValueAsString(keyValueMap);
-        }
-        catch (JsonProcessingException e) {
-            throw new ConsulSnapshotSerializationException("Unexpected exception during toJson transformation", e);
-        }
     }
 }

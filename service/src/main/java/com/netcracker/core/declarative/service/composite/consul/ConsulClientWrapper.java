@@ -55,8 +55,10 @@ public final class ConsulClientWrapper implements ConsulClient {
             ConsulPrefixSnapshot snapshot = new ConsulPrefixSnapshot(ar.result());
             handler.onSuccess(snapshot);
         } else {
-            log.warn("Consul long-poll failed: path='{}'", path, ar.cause());
-            handler.onError(ar.cause());
+            Throwable cause = ar.cause();
+            String reason = (cause != null ? cause.getMessage() : "unknown error");
+            log.debug("Consul long-poll failed: path='{}', reason='{}'", path, reason);
+            handler.onError(cause);
         }
     }
 

@@ -1,10 +1,10 @@
 package com.netcracker.core.declarative.service.composite;
 
-import com.netcracker.core.declarative.client.k8s.DeclarativeKubernetesClient;
+import com.netcracker.core.declarative.client.k8s.SecretClient;
+import com.netcracker.core.declarative.service.composite.consul.ConsulSnapshotHandler;
+import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructureSerializer;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulSnapshotSerializationException;
-import com.netcracker.core.declarative.service.composite.consul.ConsulSnapshotHandler;
-import io.fabric8.kubernetes.client.KubernetesClient;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -13,27 +13,28 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.RejectedExecutionException;
 
 @ApplicationScoped
 @Slf4j
 public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler {
     private static final String SECRET_NAME = "current-composite-structure";
+    private static final String SECRET_DATA_KEY = "compositeStructure";
     private static final int MAX_RETRY_ATTEMPTS = 5;
     private static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(3);
     private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(30);
 
-    private final DeclarativeKubernetesClient kubernetesClient;
+    private final SecretClient secretClient;
     private final String namespace;
 
     private final ScheduledThreadPoolExecutor k8sWritesExecutorService;
 
     @Inject
-    public CompositeStructureToSecretHandler(KubernetesClient client,
+    public CompositeStructureToSecretHandler(SecretClient secretClient,
                                              @ConfigProperty(name = "cloud.microservice.namespace") String namespace) {
-        this.kubernetesClient = new DeclarativeKubernetesClient(client);
+        this.secretClient = secretClient;
         this.namespace = namespace;
         this.k8sWritesExecutorService = new ScheduledThreadPoolExecutor(1, r -> {
             Thread t = new Thread(r, "core-operator-k8s-writes");
@@ -48,6 +49,17 @@ public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler 
     @PreDestroy
     void shutdownExecutor() {
         k8sWritesExecutorService.shutdown();
+        try {
+            if (!k8sWritesExecutorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                k8sWritesExecutorService.shutdownNow();
+                if (!k8sWritesExecutorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                    log.debug("K8s writes executor did not terminate in time after shutdown");
+                }
+            }
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            log.debug("Interrupted while waiting for k8s writes executor shutdown");
+        }
     }
 
     @Override
@@ -57,21 +69,21 @@ public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler 
             k8sWritesExecutorService.getQueue().clear();
             k8sWritesExecutorService.execute(() -> {
                 try {
-                    String json = compositeStructureSnapshot.toJson();
-                    Map<String, String> compositeStructureContent = Map.of("compositeStructure", json);
+                    String json = CompositeStructureSerializer.serializeNamespacesPayload(compositeStructureSnapshot);
+                    Map<String, String> compositeStructureContent = Map.of(SECRET_DATA_KEY, json);
                     updateSecretWithRetry(compositeStructureContent, 1, INITIAL_RETRY_DELAY);
                 } catch (ConsulSnapshotSerializationException e) {
                     log.error("Failed to serialize Consul snapshot for secret '{}'", SECRET_NAME, e);
                 }
             });
         } catch (RejectedExecutionException ex) {
-            log.warn("K8s writes executor is shut down, skipping secret update for '{}'", SECRET_NAME, ex);
+            log.debug("K8s writes executor is shut down, skipping secret update for '{}'", SECRET_NAME);
         }
     }
 
-    private void updateSecretWithRetry(Map<String, String> compositeStructure, int attempt, Duration nextDelay) {
+    void updateSecretWithRetry(Map<String, String> compositeStructure, int attempt, Duration nextDelay) {
         try {
-            kubernetesClient.createOrUpdateSecret(SECRET_NAME, namespace, compositeStructure, null);
+            secretClient.createOrUpdate(SECRET_NAME, namespace, compositeStructure, null);
         } catch (Exception e) {
             if (attempt >= MAX_RETRY_ATTEMPTS) {
                 log.error("Failed to update secret '{}' after {} attempts", SECRET_NAME, attempt, e);
@@ -95,7 +107,7 @@ public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler 
                         TimeUnit.MILLISECONDS
                 );
             } catch (RejectedExecutionException ree) {
-                log.warn("Failed to schedule retry for secret '{}' because executor is shut down", SECRET_NAME, ree);
+                log.debug("Failed to schedule retry for secret '{}' because executor is shut down", SECRET_NAME);
             }
         }
     }
