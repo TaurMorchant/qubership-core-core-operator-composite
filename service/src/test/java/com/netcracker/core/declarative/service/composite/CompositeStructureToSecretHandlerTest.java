@@ -2,6 +2,8 @@ package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.client.k8s.SecretClient;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
+import io.vertx.ext.consul.KeyValue;
+import io.vertx.ext.consul.KeyValueList;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,7 +13,6 @@ import org.mockito.ArgumentCaptor;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -25,12 +26,11 @@ import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class CompositeStructureToSecretHandlerTest {
 
     private static final String NAMESPACE = "test-namespace";
-    private static final String SECRET_NAME = "current-composite-structure";
+    private static final String SECRET_NAME = "composite-struct";
 
     private SecretClient secretClient;
     private CompositeStructureToSecretHandler handler;
@@ -49,10 +49,9 @@ class CompositeStructureToSecretHandlerTest {
 
     @Test
     void handleShouldSerializeSnapshotAndUpdateSecret() {
-        ConsulPrefixSnapshot snapshot = mock(ConsulPrefixSnapshot.class);
-        when(snapshot.getKeySet()).thenReturn(Set.of(
-                "composite/sample/structure/ns-a/value",
-                "composite/sample/structure/ns-b/another"
+        ConsulPrefixSnapshot snapshot = snapshot(Map.of(
+                "composite/sample/structure/ns-a/compositeRole", "baseline",
+                "composite/sample/structure/ns-b/compositeRole", "satellite"
         ));
 
         handler.handle(snapshot);
@@ -63,7 +62,8 @@ class CompositeStructureToSecretHandlerTest {
 
         Map<String, String> data = dataCaptor.getValue();
         assertEquals(1, data.size());
-        assertEquals("{\"namespaces\":[\"ns-a\",\"ns-b\"]}", data.get("compositeStructure"));
+        assertEquals("{\"baseline\":{\"origin\":\"ns-a\"},\"satellites\":[{\"origin\":\"ns-b\"}]}",
+                data.get("data"));
     }
 
     @Test
@@ -100,6 +100,14 @@ class CompositeStructureToSecretHandlerTest {
         Field field = CompositeStructureToSecretHandler.class.getDeclaredField("k8sWritesExecutorService");
         field.setAccessible(true);
         field.set(target, executor);
+    }
+
+    private static ConsulPrefixSnapshot snapshot(Map<String, String> keyValues) {
+        KeyValueList keyValueList = new KeyValueList();
+        keyValueList.setList(keyValues.entrySet().stream()
+                .map(entry -> new KeyValue().setKey(entry.getKey()).setValue(entry.getValue()))
+                .toList());
+        return new ConsulPrefixSnapshot(keyValueList);
     }
 
     private static int getMaxRetryAttempts() throws Exception {

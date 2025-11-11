@@ -141,8 +141,8 @@ public class Configuration {
 
     @Produces
     @ApplicationScoped
-    public TenantService tenantService(ConsulClientFactory
-                                               consulClientFactory, Instance<TokenStorage> consulTokenStorage) {
+    public TenantService tenantService(ConsulClientFactory consulClientFactory,
+                                       Instance<TokenStorage> consulTokenStorage) {
         return new TenantService(consulClientFactory, consulTokenStorage.get());
     }
 

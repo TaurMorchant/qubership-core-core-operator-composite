@@ -20,8 +20,8 @@ import java.util.concurrent.TimeUnit;
 @ApplicationScoped
 @Slf4j
 public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler {
-    private static final String SECRET_NAME = "current-composite-structure";
-    private static final String SECRET_DATA_KEY = "compositeStructure";
+    private static final String SECRET_NAME = "composite-struct";
+    private static final String SECRET_DATA_KEY = "data";
     private static final int MAX_RETRY_ATTEMPTS = 5;
     private static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(3);
     private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(30);
@@ -69,7 +69,7 @@ public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler 
             k8sWritesExecutorService.getQueue().clear();
             k8sWritesExecutorService.execute(() -> {
                 try {
-                    String json = CompositeStructureSerializer.serializeNamespacesPayload(compositeStructureSnapshot);
+                    String json = CompositeStructureSerializer.serialize(compositeStructureSnapshot);
                     Map<String, String> compositeStructureContent = Map.of(SECRET_DATA_KEY, json);
                     updateSecretWithRetry(compositeStructureContent, 1, INITIAL_RETRY_DELAY);
                 } catch (ConsulSnapshotSerializationException e) {
