@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 @ApplicationScoped
 @Slf4j
 public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler {
-    private static final String SECRET_NAME = "composite-struct";
+    private static final String SECRET_NAME = "composite-structure";
     private static final String SECRET_DATA_KEY = "data";
     private static final int MAX_RETRY_ATTEMPTS = 5;
     private static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(3);

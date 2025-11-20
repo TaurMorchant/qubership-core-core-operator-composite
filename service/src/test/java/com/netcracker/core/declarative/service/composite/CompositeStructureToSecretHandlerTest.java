@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verify;
 class CompositeStructureToSecretHandlerTest {
 
     private static final String NAMESPACE = "test-namespace";
-    private static final String SECRET_NAME = "composite-struct";
+    private static final String SECRET_NAME = "composite-structure";
 
     private SecretClient secretClient;
     private CompositeStructureToSecretHandler handler;
