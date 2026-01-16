@@ -2,9 +2,13 @@ package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.client.k8s.ConfigMapClient;
 import com.netcracker.core.declarative.service.composite.consul.ConsulSnapshotHandler;
+import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructureConfigMapPayload;
+import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructurePayload;
 import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructureSerializer;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulSnapshotSerializationException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -22,20 +26,30 @@ import java.util.concurrent.TimeUnit;
 public class CompositeStructureToConfigMapHandler implements ConsulSnapshotHandler {
     private static final String CONFIG_MAP_NAME = "composite-structure";
     private static final String CONFIG_MAP_DATA_KEY = "data";
+    private static final String DEFAULT_CLOUD_PROVIDER = "OnPrem";
+    private static final String DEFAULT_CLOUD_OIDC_PROXY_URL = "http://super-proxy.namespace:8080";
     private static final int MAX_RETRY_ATTEMPTS = 5;
     private static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(3);
     private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(30);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ConfigMapClient configMapClient;
     private final String namespace;
+    private final String cloudProvider;
+    private final String cloudOidcProxyUrl;
 
     private final ScheduledThreadPoolExecutor k8sWritesExecutorService;
 
     @Inject
     public CompositeStructureToConfigMapHandler(ConfigMapClient configMapClient,
-                                                @ConfigProperty(name = "cloud.microservice.namespace") String namespace) {
+                                                @ConfigProperty(name = "cloud.microservice.namespace") String namespace,
+                                                @ConfigProperty(name = "CLOUD_PROVIDER", defaultValue = DEFAULT_CLOUD_PROVIDER) String cloudProvider,
+                                                @ConfigProperty(name = "CLOUD_OIDC_PROXY_URL",
+                                                        defaultValue = DEFAULT_CLOUD_OIDC_PROXY_URL) String cloudOidcProxyUrl) {
         this.configMapClient = configMapClient;
         this.namespace = namespace;
+        this.cloudProvider = cloudProvider;
+        this.cloudOidcProxyUrl = cloudOidcProxyUrl;
         this.k8sWritesExecutorService = new ScheduledThreadPoolExecutor(1, r -> {
             Thread t = new Thread(r, "core-operator-k8s-writes");
             t.setDaemon(true);
@@ -69,10 +83,16 @@ public class CompositeStructureToConfigMapHandler implements ConsulSnapshotHandl
             k8sWritesExecutorService.getQueue().clear();
             k8sWritesExecutorService.execute(() -> {
                 try {
-                    String json = CompositeStructureSerializer.serialize(compositeStructureSnapshot);
+                    CompositeStructurePayload compositePayload = CompositeStructureSerializer.toPayload(compositeStructureSnapshot);
+                    CompositeStructureConfigMapPayload payload = new CompositeStructureConfigMapPayload(
+                            cloudProvider,
+                            cloudOidcProxyUrl,
+                            compositePayload
+                    );
+                    String json = serializePayload(payload);
                     Map<String, String> compositeStructureContent = Map.of(CONFIG_MAP_DATA_KEY, json);
                     updateConfigMapWithRetry(compositeStructureContent, 1, INITIAL_RETRY_DELAY);
-                } catch (ConsulSnapshotSerializationException e) {
+                } catch (ConsulSnapshotSerializationException | JsonProcessingException e) {
                     log.error("Failed to serialize Consul snapshot for config map '{}'", CONFIG_MAP_NAME, e);
                 }
             });
@@ -110,5 +130,9 @@ public class CompositeStructureToConfigMapHandler implements ConsulSnapshotHandl
                 log.debug("Failed to schedule retry for config map '{}' because executor is shut down", CONFIG_MAP_NAME);
             }
         }
+    }
+
+    private static String serializePayload(CompositeStructureConfigMapPayload payload) throws JsonProcessingException {
+        return OBJECT_MAPPER.writeValueAsString(payload);
     }
 }

@@ -31,6 +31,8 @@ class CompositeStructureToConfigMapHandlerTest {
 
     private static final String NAMESPACE = "test-namespace";
     private static final String CONFIG_MAP_NAME = "composite-structure";
+    private static final String CLOUD_PROVIDER = "OnPrem";
+    private static final String CLOUD_OIDC_PROXY_URL = "http://super-proxy.namespace:8080";
 
     private ConfigMapClient configMapClient;
     private CompositeStructureToConfigMapHandler handler;
@@ -38,7 +40,7 @@ class CompositeStructureToConfigMapHandlerTest {
     @BeforeEach
     void setUp() throws Exception {
         configMapClient = mock(ConfigMapClient.class);
-        handler = new CompositeStructureToConfigMapHandler(configMapClient, NAMESPACE);
+        handler = new CompositeStructureToConfigMapHandler(configMapClient, NAMESPACE, CLOUD_PROVIDER, CLOUD_OIDC_PROXY_URL);
         replaceExecutor(handler, new ImmediateScheduledThreadPoolExecutor());
     }
 
@@ -62,7 +64,8 @@ class CompositeStructureToConfigMapHandlerTest {
 
         Map<String, String> data = dataCaptor.getValue();
         assertEquals(1, data.size());
-        assertEquals("{\"baseline\":{\"origin\":\"ns-a\"},\"satellites\":[{\"origin\":\"ns-b\"}]}",
+        assertEquals("{\"cloudProvider\":\"OnPrem\",\"cloudOIDCProxyUrl\":\"http://super-proxy.namespace:8080\","
+                        + "\"composite\":{\"baseline\":{\"origin\":\"ns-a\"},\"satellites\":[{\"origin\":\"ns-b\"}]}}",
                 data.get("data"));
     }
 

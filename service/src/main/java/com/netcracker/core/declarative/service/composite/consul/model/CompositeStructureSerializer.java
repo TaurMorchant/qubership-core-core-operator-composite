@@ -13,7 +13,7 @@ public class CompositeStructureSerializer {
     private static final Pattern STRUCTURE_ENTRY_PATTERN = Pattern.compile("^composite/[^/]+/structure/([^/]+)/([^/]+)$");
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    public static String serialize(ConsulPrefixSnapshot consulPrefixSnapshot) {
+    public static CompositeStructurePayload toPayload(ConsulPrefixSnapshot consulPrefixSnapshot) {
         LinkedHashMap<String, Namespace> namespaces = new LinkedHashMap<>();
 
         consulPrefixSnapshot.getKeySet().stream()
@@ -40,11 +40,14 @@ public class CompositeStructureSerializer {
                     }
                 });
 
-        CompositeStructureSecretPayload payload = new CompositeStructureSecretPayload(
+        return new CompositeStructurePayload(
                 buildBaseline(namespaces.values()),
                 buildSatellites(namespaces.values())
         );
+    }
 
+    public static String serialize(ConsulPrefixSnapshot consulPrefixSnapshot) {
+        CompositeStructurePayload payload = toPayload(consulPrefixSnapshot);
         try {
             return OBJECT_MAPPER.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
@@ -158,4 +161,3 @@ public class CompositeStructureSerializer {
         }
     }
 }
-
