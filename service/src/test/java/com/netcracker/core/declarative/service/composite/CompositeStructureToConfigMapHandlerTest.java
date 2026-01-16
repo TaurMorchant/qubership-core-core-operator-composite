@@ -1,6 +1,6 @@
 package com.netcracker.core.declarative.service.composite;
 
-import com.netcracker.core.declarative.client.k8s.SecretClient;
+import com.netcracker.core.declarative.client.k8s.ConfigMapClient;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
 import io.vertx.ext.consul.KeyValue;
 import io.vertx.ext.consul.KeyValueList;
@@ -27,18 +27,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-class CompositeStructureToSecretHandlerTest {
+class CompositeStructureToConfigMapHandlerTest {
 
     private static final String NAMESPACE = "test-namespace";
-    private static final String SECRET_NAME = "composite-structure";
+    private static final String CONFIG_MAP_NAME = "composite-structure";
 
-    private SecretClient secretClient;
-    private CompositeStructureToSecretHandler handler;
+    private ConfigMapClient configMapClient;
+    private CompositeStructureToConfigMapHandler handler;
 
     @BeforeEach
     void setUp() throws Exception {
-        secretClient = mock(SecretClient.class);
-        handler = new CompositeStructureToSecretHandler(secretClient, NAMESPACE);
+        configMapClient = mock(ConfigMapClient.class);
+        handler = new CompositeStructureToConfigMapHandler(configMapClient, NAMESPACE);
         replaceExecutor(handler, new ImmediateScheduledThreadPoolExecutor());
     }
 
@@ -48,7 +48,7 @@ class CompositeStructureToSecretHandlerTest {
     }
 
     @Test
-    void handleShouldSerializeSnapshotAndUpdateSecret() {
+    void handleShouldSerializeSnapshotAndUpdateConfigMap() {
         ConsulPrefixSnapshot snapshot = snapshot(Map.of(
                 "composite/sample/structure/ns-a/compositeRole", "baseline",
                 "composite/sample/structure/ns-b/compositeRole", "satellite"
@@ -58,7 +58,7 @@ class CompositeStructureToSecretHandlerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> dataCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(secretClient).createOrUpdate(eq(SECRET_NAME), eq(NAMESPACE), dataCaptor.capture(), isNull());
+        verify(configMapClient).createOrUpdate(eq(CONFIG_MAP_NAME), eq(NAMESPACE), dataCaptor.capture(), isNull());
 
         Map<String, String> data = dataCaptor.getValue();
         assertEquals(1, data.size());
@@ -67,7 +67,7 @@ class CompositeStructureToSecretHandlerTest {
     }
 
     @Test
-    void updateSecretWithRetryRetriesAfterFailure() {
+    void updateConfigMapWithRetryRetriesAfterFailure() {
         Map<String, String> payload = Map.of("compositeStructure", "{}");
         AtomicInteger invocationCounter = new AtomicInteger();
 
@@ -76,28 +76,28 @@ class CompositeStructureToSecretHandlerTest {
                 throw new RuntimeException("boom");
             }
             return null;
-        }).when(secretClient).createOrUpdate(eq(SECRET_NAME), eq(NAMESPACE), eq(payload), isNull());
+        }).when(configMapClient).createOrUpdate(eq(CONFIG_MAP_NAME), eq(NAMESPACE), eq(payload), isNull());
 
-        handler.updateSecretWithRetry(payload, 1, Duration.ofMillis(1));
+        handler.updateConfigMapWithRetry(payload, 1, Duration.ofMillis(1));
 
-        verify(secretClient, times(2)).createOrUpdate(eq(SECRET_NAME), eq(NAMESPACE), eq(payload), isNull());
+        verify(configMapClient, times(2)).createOrUpdate(eq(CONFIG_MAP_NAME), eq(NAMESPACE), eq(payload), isNull());
     }
 
     @Test
-    void updateSecretWithRetryStopsAfterMaxAttempts() throws Exception {
+    void updateConfigMapWithRetryStopsAfterMaxAttempts() throws Exception {
         Map<String, String> payload = Map.of("compositeStructure", "{}");
         doAnswer(invocation -> {
             throw new RuntimeException("boom");
-        }).when(secretClient).createOrUpdate(eq(SECRET_NAME), eq(NAMESPACE), eq(payload), isNull());
+        }).when(configMapClient).createOrUpdate(eq(CONFIG_MAP_NAME), eq(NAMESPACE), eq(payload), isNull());
 
         int maxAttempts = getMaxRetryAttempts();
-        handler.updateSecretWithRetry(payload, maxAttempts, Duration.ZERO);
+        handler.updateConfigMapWithRetry(payload, maxAttempts, Duration.ZERO);
 
-        verify(secretClient, times(1)).createOrUpdate(eq(SECRET_NAME), eq(NAMESPACE), eq(payload), isNull());
+        verify(configMapClient, times(1)).createOrUpdate(eq(CONFIG_MAP_NAME), eq(NAMESPACE), eq(payload), isNull());
     }
 
-    private static void replaceExecutor(CompositeStructureToSecretHandler target, ScheduledThreadPoolExecutor executor) throws Exception {
-        Field field = CompositeStructureToSecretHandler.class.getDeclaredField("k8sWritesExecutorService");
+    private static void replaceExecutor(CompositeStructureToConfigMapHandler target, ScheduledThreadPoolExecutor executor) throws Exception {
+        Field field = CompositeStructureToConfigMapHandler.class.getDeclaredField("k8sWritesExecutorService");
         field.setAccessible(true);
         field.set(target, executor);
     }
@@ -111,7 +111,7 @@ class CompositeStructureToSecretHandlerTest {
     }
 
     private static int getMaxRetryAttempts() throws Exception {
-        Field field = CompositeStructureToSecretHandler.class.getDeclaredField("MAX_RETRY_ATTEMPTS");
+        Field field = CompositeStructureToConfigMapHandler.class.getDeclaredField("MAX_RETRY_ATTEMPTS");
         field.setAccessible(true);
         return field.getInt(null);
     }

@@ -1,6 +1,11 @@
 package com.netcracker.core.declarative.client.k8s;
 
-import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.kubernetes.api.model.ConfigMap;
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.api.model.ConfigMapList;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.OwnerReference;
+import io.fabric8.kubernetes.api.model.OwnerReferenceBuilder;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.DeploymentList;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -18,42 +23,42 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class SecretClientTest {
+class ConfigMapClientTest {
 
-    private static final String SECRET_NAME = "test-secret";
+    private static final String CONFIG_MAP_NAME = "test-config-map";
     private static final String NAMESPACE = "test-namespace";
     private static final String MICRO_NAME = "microservice";
 
     @Test
     void shouldMergeLabelsAndSetOwnerReferenceFromDeployment() {
         KubernetesClient client = mock(KubernetesClient.class);
-        Secret existingSecret = new SecretBuilder()
+        ConfigMap existingConfigMap = new ConfigMapBuilder()
                 .withNewMetadata()
                 .withLabels(Map.of("existing", "label"))
                 .endMetadata()
                 .build();
 
-        AtomicReference<Secret> appliedSecretRef = prepareSecretMocks(client, existingSecret);
+        AtomicReference<ConfigMap> appliedConfigMapRef = prepareConfigMapMocks(client, existingConfigMap);
         stubDeployment(client, createDeployment("uid-123"));
 
-        SecretClient secretClient = new SecretClient(client, MICRO_NAME);
+        ConfigMapClient configMapClient = new ConfigMapClient(client, MICRO_NAME);
         Map<String, String> data = Map.of("key", "value");
         Map<String, String> labels = Map.of("custom", "label");
 
-        secretClient.createOrUpdate(SECRET_NAME, NAMESPACE, data, labels);
+        configMapClient.createOrUpdate(CONFIG_MAP_NAME, NAMESPACE, data, labels);
 
-        Secret appliedSecret = appliedSecretRef.get();
-        assertNotNull(appliedSecret);
-        assertEquals(data, appliedSecret.getStringData());
+        ConfigMap appliedConfigMap = appliedConfigMapRef.get();
+        assertNotNull(appliedConfigMap);
+        assertEquals(data, appliedConfigMap.getData());
 
-        Map<String, String> resultingLabels = appliedSecret.getMetadata().getLabels();
+        Map<String, String> resultingLabels = appliedConfigMap.getMetadata().getLabels();
         assertEquals(4, resultingLabels.size());
         assertEquals("label", resultingLabels.get("existing"));
         assertEquals("Cloud-Core", resultingLabels.get("app.kubernetes.io/part-of"));
         assertEquals("core-operator", resultingLabels.get("app.kubernetes.io/managed-by"));
         assertEquals("label", resultingLabels.get("custom"));
 
-        List<OwnerReference> ownerReferences = appliedSecret.getMetadata().getOwnerReferences();
+        List<OwnerReference> ownerReferences = appliedConfigMap.getMetadata().getOwnerReferences();
         assertEquals(1, ownerReferences.size());
         OwnerReference ownerReference = ownerReferences.getFirst();
         assertEquals("apps/v1", ownerReference.getApiVersion());
@@ -71,21 +76,21 @@ class SecretClientTest {
                 .withName("existing")
                 .withUid("uid-001")
                 .build();
-        Secret existingSecret = new SecretBuilder()
+        ConfigMap existingConfigMap = new ConfigMapBuilder()
                 .withNewMetadata()
                 .withOwnerReferences(existingOwner)
                 .endMetadata()
                 .build();
 
-        AtomicReference<Secret> appliedSecretRef = prepareSecretMocks(client, existingSecret);
+        AtomicReference<ConfigMap> appliedConfigMapRef = prepareConfigMapMocks(client, existingConfigMap);
         stubDeployment(client, null);
 
-        SecretClient secretClient = new SecretClient(client, MICRO_NAME);
-        secretClient.createOrUpdate(SECRET_NAME, NAMESPACE, Map.of("key", "value"), Map.of());
+        ConfigMapClient configMapClient = new ConfigMapClient(client, MICRO_NAME);
+        configMapClient.createOrUpdate(CONFIG_MAP_NAME, NAMESPACE, Map.of("key", "value"), Map.of());
 
-        Secret appliedSecret = appliedSecretRef.get();
-        assertNotNull(appliedSecret);
-        List<OwnerReference> ownerReferences = appliedSecret.getMetadata().getOwnerReferences();
+        ConfigMap appliedConfigMap = appliedConfigMapRef.get();
+        assertNotNull(appliedConfigMap);
+        List<OwnerReference> ownerReferences = appliedConfigMap.getMetadata().getOwnerReferences();
         assertEquals(1, ownerReferences.size());
         assertEquals(existingOwner, ownerReferences.getFirst());
     }
@@ -93,41 +98,41 @@ class SecretClientTest {
     @Test
     void shouldLeaveOwnerReferencesEmptyWhenNotAvailable() {
         KubernetesClient client = mock(KubernetesClient.class);
-        AtomicReference<Secret> appliedSecretRef = prepareSecretMocks(client, null);
+        AtomicReference<ConfigMap> appliedConfigMapRef = prepareConfigMapMocks(client, null);
         stubDeployment(client, createDeployment(null));
 
-        SecretClient secretClient = new SecretClient(client, MICRO_NAME);
-        secretClient.createOrUpdate(SECRET_NAME, NAMESPACE, Map.of("key", "value"), null);
+        ConfigMapClient configMapClient = new ConfigMapClient(client, MICRO_NAME);
+        configMapClient.createOrUpdate(CONFIG_MAP_NAME, NAMESPACE, Map.of("key", "value"), null);
 
-        Secret appliedSecret = appliedSecretRef.get();
-        assertNotNull(appliedSecret);
-        assertEquals(Collections.emptyList(), appliedSecret.getMetadata().getOwnerReferences());
+        ConfigMap appliedConfigMap = appliedConfigMapRef.get();
+        assertNotNull(appliedConfigMap);
+        assertEquals(Collections.emptyList(), appliedConfigMap.getMetadata().getOwnerReferences());
     }
 
-    private AtomicReference<Secret> prepareSecretMocks(KubernetesClient client, Secret existingSecret) {
+    private AtomicReference<ConfigMap> prepareConfigMapMocks(KubernetesClient client, ConfigMap existingConfigMap) {
         @SuppressWarnings("unchecked")
-        MixedOperation<Secret, SecretList, Resource<Secret>> secretOperation = mock(MixedOperation.class);
+        MixedOperation<ConfigMap, ConfigMapList, Resource<ConfigMap>> configMapOperation = mock(MixedOperation.class);
         @SuppressWarnings("unchecked")
-        NonNamespaceOperation<Secret, SecretList, Resource<Secret>> namespacedSecretOperation = mock(NonNamespaceOperation.class);
+        NonNamespaceOperation<ConfigMap, ConfigMapList, Resource<ConfigMap>> namespacedConfigMapOperation = mock(NonNamespaceOperation.class);
         @SuppressWarnings("unchecked")
-        Resource<Secret> namedSecretResource = mock(Resource.class);
+        Resource<ConfigMap> namedConfigMapResource = mock(Resource.class);
         @SuppressWarnings("unchecked")
-        Resource<Secret> secretResource = mock(Resource.class);
+        Resource<ConfigMap> configMapResource = mock(Resource.class);
 
-        when(client.secrets()).thenReturn(secretOperation);
-        when(secretOperation.inNamespace(NAMESPACE)).thenReturn(namespacedSecretOperation);
-        when(namespacedSecretOperation.withName(SECRET_NAME)).thenReturn(namedSecretResource);
-        when(namedSecretResource.get()).thenReturn(existingSecret);
+        when(client.configMaps()).thenReturn(configMapOperation);
+        when(configMapOperation.inNamespace(NAMESPACE)).thenReturn(namespacedConfigMapOperation);
+        when(namespacedConfigMapOperation.withName(CONFIG_MAP_NAME)).thenReturn(namedConfigMapResource);
+        when(namedConfigMapResource.get()).thenReturn(existingConfigMap);
 
-        AtomicReference<Secret> appliedSecretRef = new AtomicReference<>();
-        when(namespacedSecretOperation.resource(Mockito.any(Secret.class))).thenAnswer(invocation -> {
-            Secret secret = invocation.getArgument(0);
-            appliedSecretRef.set(secret);
-            return secretResource;
+        AtomicReference<ConfigMap> appliedConfigMapRef = new AtomicReference<>();
+        when(namespacedConfigMapOperation.resource(Mockito.any(ConfigMap.class))).thenAnswer(invocation -> {
+            ConfigMap configMap = invocation.getArgument(0);
+            appliedConfigMapRef.set(configMap);
+            return configMapResource;
         });
-        when(secretResource.serverSideApply()).thenReturn(null);
+        when(configMapResource.serverSideApply()).thenReturn(null);
 
-        return appliedSecretRef;
+        return appliedConfigMapRef;
     }
 
     private void stubDeployment(KubernetesClient client, Deployment deployment) {

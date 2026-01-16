@@ -36,7 +36,7 @@ public class CompositeWatcher {
 
     public CompositeWatcher(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
                             ConsulClient consulClient,
-                            CompositeStructureToSecretHandler compositeStructureStateHandler) {
+                            CompositeStructureToConfigMapHandler compositeStructureStateHandler) {
         this.compositeStructureRefKey = COMPOSITE_STRUCTURE_REF_TEMPLATE.formatted(namespace);
         this.consulClient = consulClient;
         this.consulSnapshotHandler = compositeStructureStateHandler;

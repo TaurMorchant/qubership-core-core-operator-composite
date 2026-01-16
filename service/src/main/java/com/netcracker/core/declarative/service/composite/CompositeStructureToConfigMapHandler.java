@@ -1,6 +1,6 @@
 package com.netcracker.core.declarative.service.composite;
 
-import com.netcracker.core.declarative.client.k8s.SecretClient;
+import com.netcracker.core.declarative.client.k8s.ConfigMapClient;
 import com.netcracker.core.declarative.service.composite.consul.ConsulSnapshotHandler;
 import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructureSerializer;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
@@ -19,22 +19,22 @@ import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
 @Slf4j
-public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler {
-    private static final String SECRET_NAME = "composite-structure";
-    private static final String SECRET_DATA_KEY = "data";
+public class CompositeStructureToConfigMapHandler implements ConsulSnapshotHandler {
+    private static final String CONFIG_MAP_NAME = "composite-structure";
+    private static final String CONFIG_MAP_DATA_KEY = "data";
     private static final int MAX_RETRY_ATTEMPTS = 5;
     private static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(3);
     private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(30);
 
-    private final SecretClient secretClient;
+    private final ConfigMapClient configMapClient;
     private final String namespace;
 
     private final ScheduledThreadPoolExecutor k8sWritesExecutorService;
 
     @Inject
-    public CompositeStructureToSecretHandler(SecretClient secretClient,
-                                             @ConfigProperty(name = "cloud.microservice.namespace") String namespace) {
-        this.secretClient = secretClient;
+    public CompositeStructureToConfigMapHandler(ConfigMapClient configMapClient,
+                                                @ConfigProperty(name = "cloud.microservice.namespace") String namespace) {
+        this.configMapClient = configMapClient;
         this.namespace = namespace;
         this.k8sWritesExecutorService = new ScheduledThreadPoolExecutor(1, r -> {
             Thread t = new Thread(r, "core-operator-k8s-writes");
@@ -64,35 +64,35 @@ public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler 
 
     @Override
     public void handle(ConsulPrefixSnapshot compositeStructureSnapshot) {
-        log.info("Store Composite Structure to secret {}", SECRET_NAME);
+        log.info("Store Composite Structure to config map {}", CONFIG_MAP_NAME);
         try {
             k8sWritesExecutorService.getQueue().clear();
             k8sWritesExecutorService.execute(() -> {
                 try {
                     String json = CompositeStructureSerializer.serialize(compositeStructureSnapshot);
-                    Map<String, String> compositeStructureContent = Map.of(SECRET_DATA_KEY, json);
-                    updateSecretWithRetry(compositeStructureContent, 1, INITIAL_RETRY_DELAY);
+                    Map<String, String> compositeStructureContent = Map.of(CONFIG_MAP_DATA_KEY, json);
+                    updateConfigMapWithRetry(compositeStructureContent, 1, INITIAL_RETRY_DELAY);
                 } catch (ConsulSnapshotSerializationException e) {
-                    log.error("Failed to serialize Consul snapshot for secret '{}'", SECRET_NAME, e);
+                    log.error("Failed to serialize Consul snapshot for config map '{}'", CONFIG_MAP_NAME, e);
                 }
             });
         } catch (RejectedExecutionException ex) {
-            log.debug("K8s writes executor is shut down, skipping secret update for '{}'", SECRET_NAME);
+            log.debug("K8s writes executor is shut down, skipping config map update for '{}'", CONFIG_MAP_NAME);
         }
     }
 
-    void updateSecretWithRetry(Map<String, String> compositeStructure, int attempt, Duration nextDelay) {
+    void updateConfigMapWithRetry(Map<String, String> compositeStructure, int attempt, Duration nextDelay) {
         try {
-            secretClient.createOrUpdate(SECRET_NAME, namespace, compositeStructure, null);
+            configMapClient.createOrUpdate(CONFIG_MAP_NAME, namespace, compositeStructure, null);
         } catch (Exception e) {
             if (attempt >= MAX_RETRY_ATTEMPTS) {
-                log.error("Failed to update secret '{}' after {} attempts", SECRET_NAME, attempt, e);
+                log.error("Failed to update config map '{}' after {} attempts", CONFIG_MAP_NAME, attempt, e);
                 return;
             }
 
             Duration boundedDelay = nextDelay.compareTo(MAX_RETRY_DELAY) > 0 ? MAX_RETRY_DELAY : nextDelay;
-            log.warn("Failed to update secret '{}' on attempt {}/{}. Retrying in {}.",
-                    SECRET_NAME, attempt, MAX_RETRY_ATTEMPTS, boundedDelay, e);
+            log.warn("Failed to update config map '{}' on attempt {}/{}. Retrying in {}.",
+                    CONFIG_MAP_NAME, attempt, MAX_RETRY_ATTEMPTS, boundedDelay, e);
 
             Duration followingDelay = nextDelay.multipliedBy(2);
             if (followingDelay.compareTo(MAX_RETRY_DELAY) > 0) {
@@ -102,12 +102,12 @@ public class CompositeStructureToSecretHandler implements ConsulSnapshotHandler 
             Duration finalFollowingDelay = followingDelay;
             try {
                 k8sWritesExecutorService.schedule(
-                        () -> updateSecretWithRetry(compositeStructure, attempt + 1, finalFollowingDelay),
+                        () -> updateConfigMapWithRetry(compositeStructure, attempt + 1, finalFollowingDelay),
                         boundedDelay.toMillis(),
                         TimeUnit.MILLISECONDS
                 );
             } catch (RejectedExecutionException ree) {
-                log.debug("Failed to schedule retry for secret '{}' because executor is shut down", SECRET_NAME);
+                log.debug("Failed to schedule retry for config map '{}' because executor is shut down", CONFIG_MAP_NAME);
             }
         }
     }

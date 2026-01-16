@@ -1,9 +1,9 @@
 package com.netcracker.core.declarative.client.k8s;
 
+import io.fabric8.kubernetes.api.model.ConfigMap;
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
 import io.fabric8.kubernetes.api.model.OwnerReference;
 import io.fabric8.kubernetes.api.model.OwnerReferenceBuilder;
-import io.fabric8.kubernetes.api.model.Secret;
-import io.fabric8.kubernetes.api.model.SecretBuilder;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -11,17 +11,21 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @ApplicationScoped
 @Slf4j
-public class SecretClient {
+public class ConfigMapClient {
     private final KubernetesClient client;
     private final String microserviceName;
 
     @Inject
-    public SecretClient(KubernetesClient client,
-                        @ConfigProperty(name = "cloud.microservice.name") String microserviceName) {
+    public ConfigMapClient(KubernetesClient client,
+                           @ConfigProperty(name = "cloud.microservice.name") String microserviceName) {
         this.client = client;
         this.microserviceName = microserviceName;
     }
@@ -33,44 +37,43 @@ public class SecretClient {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(namespace, "namespace");
 
-        log.debug("Start creating or updating secret with name = {}", name);
+        log.debug("Start creating or updating config map with name = {}", name);
 
-        Secret existingSecret = client.secrets()
+        ConfigMap existingConfigMap = client.configMaps()
                 .inNamespace(namespace)
                 .withName(name)
                 .get();
 
-        Map<String, String> effectiveLabels = resolveSecretLabels(existingSecret, labels);
+        Map<String, String> effectiveLabels = resolveConfigMapLabels(existingConfigMap, labels);
 
-        SecretBuilder.MetadataNested<SecretBuilder> metadataBuilder = new SecretBuilder()
+        ConfigMapBuilder.MetadataNested<ConfigMapBuilder> metadataBuilder = new ConfigMapBuilder()
                 .withNewMetadata()
                 .withName(name)
                 .withNamespace(namespace)
                 .withLabels(effectiveLabels);
 
-        List<OwnerReference> ownerReferences = resolveOwnerReferences(name, namespace, existingSecret);
+        List<OwnerReference> ownerReferences = resolveOwnerReferences(name, namespace, existingConfigMap);
         if (!ownerReferences.isEmpty()) {
             metadataBuilder.withOwnerReferences(ownerReferences);
         }
 
-        Secret secret = metadataBuilder
+        ConfigMap configMap = metadataBuilder
                 .endMetadata()
-                .withType("Opaque")
-                .withStringData(data)
+                .withData(data)
                 .build();
 
-        client.secrets()
+        client.configMaps()
                 .inNamespace(namespace)
-                .resource(secret).serverSideApply();
+                .resource(configMap).serverSideApply();
     }
 
-    private Map<String, String> resolveSecretLabels(Secret existingSecret,
-                                                    Map<String, String> labels) {
+    private Map<String, String> resolveConfigMapLabels(ConfigMap existingConfigMap,
+                                                       Map<String, String> labels) {
         Map<String, String> mergedLabels = new HashMap<>();
-        if (existingSecret != null
-            && existingSecret.getMetadata() != null
-            && existingSecret.getMetadata().getLabels() != null) {
-            mergedLabels.putAll(existingSecret.getMetadata().getLabels());
+        if (existingConfigMap != null
+            && existingConfigMap.getMetadata() != null
+            && existingConfigMap.getMetadata().getLabels() != null) {
+            mergedLabels.putAll(existingConfigMap.getMetadata().getLabels());
         }
 
         mergedLabels.put("app.kubernetes.io/part-of", "Cloud-Core");
@@ -83,23 +86,23 @@ public class SecretClient {
         return mergedLabels;
     }
 
-    private List<OwnerReference> resolveOwnerReferences(String secretName,
+    private List<OwnerReference> resolveOwnerReferences(String configMapName,
                                                         String namespace,
-                                                        Secret existingSecret) {
+                                                        ConfigMap existingConfigMap) {
         OwnerReference ownerReference = resolveDeploymentOwnerReference(namespace);
         if (ownerReference != null) {
             return List.of(ownerReference);
         }
 
-        if (existingSecret != null
-            && existingSecret.getMetadata() != null
-            && existingSecret.getMetadata().getOwnerReferences() != null
-            && !existingSecret.getMetadata().getOwnerReferences().isEmpty()) {
-            log.debug("Deployment owner reference is unavailable. Keeping existing owner references for secret '{}'", secretName);
-            return existingSecret.getMetadata().getOwnerReferences();
+        if (existingConfigMap != null
+            && existingConfigMap.getMetadata() != null
+            && existingConfigMap.getMetadata().getOwnerReferences() != null
+            && !existingConfigMap.getMetadata().getOwnerReferences().isEmpty()) {
+            log.debug("Deployment owner reference is unavailable. Keeping existing owner references for config map '{}'", configMapName);
+            return existingConfigMap.getMetadata().getOwnerReferences();
         }
 
-        log.warn("Unable to resolve owner reference for secret '{}' in namespace '{}'", secretName, namespace);
+        log.warn("Unable to resolve owner reference for config map '{}' in namespace '{}'", configMapName, namespace);
         return Collections.emptyList();
     }
 

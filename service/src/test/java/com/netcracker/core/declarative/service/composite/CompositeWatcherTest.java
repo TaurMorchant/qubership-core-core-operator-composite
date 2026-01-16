@@ -30,7 +30,7 @@ class CompositeWatcherTest {
     ConsulClient consulClient;
 
     @Mock
-    CompositeStructureToSecretHandler snapshotHandler;
+    CompositeStructureToConfigMapHandler snapshotHandler;
 
     @Mock
     ConsulLongPoller refPoller;
