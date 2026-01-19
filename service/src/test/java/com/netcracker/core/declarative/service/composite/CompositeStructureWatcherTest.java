@@ -24,13 +24,13 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("unchecked")
-class CompositeWatcherTest {
+class CompositeStructureWatcherTest {
 
     @Mock
     ConsulClient consulClient;
 
     @Mock
-    CompositeStructureToConfigMapHandler snapshotHandler;
+    CompositeStructureSnapshotHandler snapshotHandler;
 
     @Mock
     ConsulLongPoller refPoller;
@@ -49,7 +49,7 @@ class CompositeWatcherTest {
         try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
             mockedStatic.when(ConsulLongPoller::builder).thenReturn(builder);
 
-            CompositeWatcher watcher = new CompositeWatcher("ns", consulClient, snapshotHandler);
+            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
             watcher.start();
 
             verify(builder).path("config/ns/application/composite/structureRef");
@@ -84,7 +84,7 @@ class CompositeWatcherTest {
             mockedStatic.when(ConsulLongPoller::builder)
                     .thenReturn(refBuilder, structureBuilder, secondStructureBuilder);
 
-            CompositeWatcher watcher = new CompositeWatcher("ns", consulClient, snapshotHandler);
+            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
             watcher.start();
 
             ArgumentCaptor<Consumer<ConsulPrefixSnapshot>> refSnapshotCaptor = ArgumentCaptor.forClass(Consumer.class);
@@ -126,7 +126,7 @@ class CompositeWatcherTest {
         try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
             mockedStatic.when(ConsulLongPoller::builder).thenReturn(refBuilder, structureBuilder);
 
-            CompositeWatcher watcher = new CompositeWatcher("ns", consulClient, snapshotHandler);
+            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
             watcher.start();
 
             ArgumentCaptor<Consumer<ConsulPrefixSnapshot>> refSnapshotCaptor = ArgumentCaptor.forClass(Consumer.class);
@@ -156,7 +156,7 @@ class CompositeWatcherTest {
         try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
             mockedStatic.when(ConsulLongPoller::builder).thenReturn(refBuilder, structureBuilder);
 
-            CompositeWatcher watcher = new CompositeWatcher("ns", consulClient, snapshotHandler);
+            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
             watcher.start();
 
             ArgumentCaptor<Consumer<ConsulPrefixSnapshot>> refSnapshotCaptor = ArgumentCaptor.forClass(Consumer.class);
@@ -186,7 +186,7 @@ class CompositeWatcherTest {
         try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
             mockedStatic.when(ConsulLongPoller::builder).thenReturn(refBuilder, structureBuilder);
 
-            CompositeWatcher watcher = new CompositeWatcher("ns", consulClient, snapshotHandler);
+            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
             watcher.start();
 
             ArgumentCaptor<Consumer<ConsulPrefixSnapshot>> refSnapshotCaptor = ArgumentCaptor.forClass(Consumer.class);

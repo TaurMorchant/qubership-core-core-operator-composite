@@ -13,12 +13,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class CompositeStructureManagerTest {
+class CompositeStructureWatchCoordinatorTest {
 
     @Test
     void startShouldStartPollingWhenManagedByCoreOperator() {
         ConsulClient consulClient = mock(ConsulClient.class);
-        CompositeStructureToConfigMapHandler handler = mock(CompositeStructureToConfigMapHandler.class);
+        CompositeStructureSnapshotHandler handler = mock(CompositeStructureSnapshotHandler.class);
         ConfigMapClient configMapClient = mock(ConfigMapClient.class);
         when(configMapClient.isManagedByCoreOperator("composite-structure", "ns")).thenReturn(true);
 
@@ -29,7 +29,7 @@ class CompositeStructureManagerTest {
         try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
             mockedStatic.when(ConsulLongPoller::builder).thenReturn(builder);
 
-            CompositeStructureManager manager = new CompositeStructureManager("ns", consulClient, handler, configMapClient);
+            CompositeStructureWatchCoordinator manager = new CompositeStructureWatchCoordinator("ns", consulClient, handler, configMapClient);
             manager.start();
 
             verify(refPoller).start();
@@ -39,12 +39,12 @@ class CompositeStructureManagerTest {
     @Test
     void startShouldSkipPollingWhenManagedByTopologyOperator() {
         ConsulClient consulClient = mock(ConsulClient.class);
-        CompositeStructureToConfigMapHandler handler = mock(CompositeStructureToConfigMapHandler.class);
+        CompositeStructureSnapshotHandler handler = mock(CompositeStructureSnapshotHandler.class);
         ConfigMapClient configMapClient = mock(ConfigMapClient.class);
         when(configMapClient.isManagedByCoreOperator("composite-structure", "ns")).thenReturn(false);
 
         try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
-            CompositeStructureManager manager = new CompositeStructureManager("ns", consulClient, handler, configMapClient);
+            CompositeStructureWatchCoordinator manager = new CompositeStructureWatchCoordinator("ns", consulClient, handler, configMapClient);
             manager.start();
 
             mockedStatic.verifyNoInteractions();

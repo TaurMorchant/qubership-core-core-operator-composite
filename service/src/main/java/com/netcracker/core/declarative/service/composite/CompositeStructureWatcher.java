@@ -12,7 +12,7 @@ import java.time.Duration;
 import java.util.Objects;
 
 @Slf4j
-public class CompositeWatcher {
+public class CompositeStructureWatcher {
 
     private static final String COMPOSITE_STRUCTURE_REF_TEMPLATE = "config/%s/application/composite/structureRef";
     private static final LongPollConfig KV_POLL_CONFIG = LongPollConfig.builder()
@@ -28,9 +28,9 @@ public class CompositeWatcher {
 
     private volatile String currentCompositeStructureConsulPrefix;
 
-    public CompositeWatcher(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
-                            ConsulClient consulClient,
-                            ConsulSnapshotHandler compositeStructureStateHandler) {
+    public CompositeStructureWatcher(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
+                                     ConsulClient consulClient,
+                                     ConsulSnapshotHandler compositeStructureStateHandler) {
         this.compositeStructureRefKey = COMPOSITE_STRUCTURE_REF_TEMPLATE.formatted(namespace);
         this.consulClient = consulClient;
         this.consulSnapshotHandler = compositeStructureStateHandler;
