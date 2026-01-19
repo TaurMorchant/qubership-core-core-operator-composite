@@ -21,10 +21,11 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import static com.netcracker.core.declarative.service.composite.CompositeStructureManager.CONFIG_MAP_NAME;
+
 @ApplicationScoped
 @Slf4j
 public class CompositeStructureToConfigMapHandler implements ConsulSnapshotHandler {
-    private static final String CONFIG_MAP_NAME = "composite-structure";
     private static final String CONFIG_MAP_DATA_KEY = "data";
     private static final String DEFAULT_CLOUD_PROVIDER = "OnPrem";
     private static final String DEFAULT_CLOUD_OIDC_PROXY_URL = "http://super-proxy.namespace:8080";

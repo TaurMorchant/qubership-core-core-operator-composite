@@ -5,18 +5,12 @@ import com.netcracker.core.declarative.service.composite.consul.ConsulSnapshotHa
 import com.netcracker.core.declarative.service.composite.consul.longpoll.ConsulLongPoller;
 import com.netcracker.core.declarative.service.composite.consul.longpoll.LongPollConfig;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
-import io.quarkus.runtime.Startup;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
 import java.util.Objects;
 
-@ApplicationScoped
-@Startup
 @Slf4j
 public class CompositeWatcher {
 
@@ -36,13 +30,12 @@ public class CompositeWatcher {
 
     public CompositeWatcher(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
                             ConsulClient consulClient,
-                            CompositeStructureToConfigMapHandler compositeStructureStateHandler) {
+                            ConsulSnapshotHandler compositeStructureStateHandler) {
         this.compositeStructureRefKey = COMPOSITE_STRUCTURE_REF_TEMPLATE.formatted(namespace);
         this.consulClient = consulClient;
         this.consulSnapshotHandler = compositeStructureStateHandler;
     }
 
-    @PostConstruct
     void start() {
         startCompositeStructureRefLongPoll();
     }
@@ -59,7 +52,6 @@ public class CompositeWatcher {
         compositeStructureRefPoller.start();
     }
 
-    @PreDestroy
     void stop() {
         if (compositeStructureRefPoller != null) {
             compositeStructureRefPoller.close();

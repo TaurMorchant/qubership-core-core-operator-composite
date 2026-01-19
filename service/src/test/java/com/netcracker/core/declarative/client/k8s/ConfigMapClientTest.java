@@ -3,22 +3,17 @@ package com.netcracker.core.declarative.client.k8s;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
 import io.fabric8.kubernetes.api.model.ConfigMapList;
-import io.fabric8.kubernetes.api.model.ObjectMeta;
-import io.fabric8.kubernetes.api.model.OwnerReference;
-import io.fabric8.kubernetes.api.model.OwnerReferenceBuilder;
-import io.fabric8.kubernetes.api.model.apps.Deployment;
-import io.fabric8.kubernetes.api.model.apps.DeploymentList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.*;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -27,10 +22,9 @@ class ConfigMapClientTest {
 
     private static final String CONFIG_MAP_NAME = "test-config-map";
     private static final String NAMESPACE = "test-namespace";
-    private static final String MICRO_NAME = "microservice";
 
     @Test
-    void shouldMergeLabelsAndSetOwnerReferenceFromDeployment() {
+    void shouldMergeLabelsAndSetManagedByCoreOperator() {
         KubernetesClient client = mock(KubernetesClient.class);
         ConfigMap existingConfigMap = new ConfigMapBuilder()
                 .withNewMetadata()
@@ -38,16 +32,15 @@ class ConfigMapClientTest {
                 .endMetadata()
                 .build();
 
-        AtomicReference<ConfigMap> appliedConfigMapRef = prepareConfigMapMocks(client, existingConfigMap);
-        stubDeployment(client, createDeployment("uid-123"));
+        ApplyResult applyResult = prepareConfigMapMocks(client, existingConfigMap);
 
-        ConfigMapClient configMapClient = new ConfigMapClient(client, MICRO_NAME);
+        ConfigMapClient configMapClient = new ConfigMapClient(client);
         Map<String, String> data = Map.of("key", "value");
         Map<String, String> labels = Map.of("custom", "label");
 
         configMapClient.createOrUpdate(CONFIG_MAP_NAME, NAMESPACE, data, labels);
 
-        ConfigMap appliedConfigMap = appliedConfigMapRef.get();
+        ConfigMap appliedConfigMap = applyResult.appliedConfigMapRef().get();
         assertNotNull(appliedConfigMap);
         assertEquals(data, appliedConfigMap.getData());
 
@@ -57,59 +50,26 @@ class ConfigMapClientTest {
         assertEquals("Cloud-Core", resultingLabels.get("app.kubernetes.io/part-of"));
         assertEquals("core-operator", resultingLabels.get("app.kubernetes.io/managed-by"));
         assertEquals("label", resultingLabels.get("custom"));
-
-        List<OwnerReference> ownerReferences = appliedConfigMap.getMetadata().getOwnerReferences();
-        assertEquals(1, ownerReferences.size());
-        OwnerReference ownerReference = ownerReferences.getFirst();
-        assertEquals("apps/v1", ownerReference.getApiVersion());
-        assertEquals("Deployment", ownerReference.getKind());
-        assertEquals(MICRO_NAME, ownerReference.getName());
-        assertEquals("uid-123", ownerReference.getUid());
     }
 
     @Test
-    void shouldReuseExistingOwnerReferencesWhenDeploymentUnavailable() {
+    void shouldSkipUpdateWhenManagedByTopologyOperator() {
         KubernetesClient client = mock(KubernetesClient.class);
-        OwnerReference existingOwner = new OwnerReferenceBuilder()
-                .withApiVersion("apps/v1")
-                .withKind("Deployment")
-                .withName("existing")
-                .withUid("uid-001")
-                .build();
         ConfigMap existingConfigMap = new ConfigMapBuilder()
                 .withNewMetadata()
-                .withOwnerReferences(existingOwner)
+                .withLabels(Map.of("app.kubernetes.io/managed-by", "topology-operator"))
                 .endMetadata()
                 .build();
 
-        AtomicReference<ConfigMap> appliedConfigMapRef = prepareConfigMapMocks(client, existingConfigMap);
-        stubDeployment(client, null);
+        ApplyResult applyResult = prepareConfigMapMocks(client, existingConfigMap);
 
-        ConfigMapClient configMapClient = new ConfigMapClient(client, MICRO_NAME);
-        configMapClient.createOrUpdate(CONFIG_MAP_NAME, NAMESPACE, Map.of("key", "value"), Map.of());
-
-        ConfigMap appliedConfigMap = appliedConfigMapRef.get();
-        assertNotNull(appliedConfigMap);
-        List<OwnerReference> ownerReferences = appliedConfigMap.getMetadata().getOwnerReferences();
-        assertEquals(1, ownerReferences.size());
-        assertEquals(existingOwner, ownerReferences.getFirst());
-    }
-
-    @Test
-    void shouldLeaveOwnerReferencesEmptyWhenNotAvailable() {
-        KubernetesClient client = mock(KubernetesClient.class);
-        AtomicReference<ConfigMap> appliedConfigMapRef = prepareConfigMapMocks(client, null);
-        stubDeployment(client, createDeployment(null));
-
-        ConfigMapClient configMapClient = new ConfigMapClient(client, MICRO_NAME);
+        ConfigMapClient configMapClient = new ConfigMapClient(client);
         configMapClient.createOrUpdate(CONFIG_MAP_NAME, NAMESPACE, Map.of("key", "value"), null);
 
-        ConfigMap appliedConfigMap = appliedConfigMapRef.get();
-        assertNotNull(appliedConfigMap);
-        assertEquals(Collections.emptyList(), appliedConfigMap.getMetadata().getOwnerReferences());
+        assertFalse(applyResult.wasApplied().get());
     }
 
-    private AtomicReference<ConfigMap> prepareConfigMapMocks(KubernetesClient client, ConfigMap existingConfigMap) {
+    private ApplyResult prepareConfigMapMocks(KubernetesClient client, ConfigMap existingConfigMap) {
         @SuppressWarnings("unchecked")
         MixedOperation<ConfigMap, ConfigMapList, Resource<ConfigMap>> configMapOperation = mock(MixedOperation.class);
         @SuppressWarnings("unchecked")
@@ -125,38 +85,19 @@ class ConfigMapClientTest {
         when(namedConfigMapResource.get()).thenReturn(existingConfigMap);
 
         AtomicReference<ConfigMap> appliedConfigMapRef = new AtomicReference<>();
+        AtomicBoolean wasApplied = new AtomicBoolean(false);
         when(namespacedConfigMapOperation.resource(Mockito.any(ConfigMap.class))).thenAnswer(invocation -> {
             ConfigMap configMap = invocation.getArgument(0);
             appliedConfigMapRef.set(configMap);
             return configMapResource;
         });
-        when(configMapResource.serverSideApply()).thenReturn(null);
+        when(configMapResource.serverSideApply()).thenAnswer(invocation -> {
+            wasApplied.set(true);
+            return null;
+        });
 
-        return appliedConfigMapRef;
+        return new ApplyResult(appliedConfigMapRef, wasApplied);
     }
 
-    private void stubDeployment(KubernetesClient client, Deployment deployment) {
-        AppsAPIGroupDSL apps = mock(AppsAPIGroupDSL.class);
-        @SuppressWarnings("unchecked")
-        MixedOperation<Deployment, DeploymentList, RollableScalableResource<Deployment>> deploymentOperation = mock(MixedOperation.class);
-        @SuppressWarnings("unchecked")
-        NonNamespaceOperation<Deployment, DeploymentList, RollableScalableResource<Deployment>> namespacedDeploymentOperation = mock(NonNamespaceOperation.class);
-        @SuppressWarnings("unchecked")
-        RollableScalableResource<Deployment> deploymentResource = mock(RollableScalableResource.class);
-
-        when(client.apps()).thenReturn(apps);
-        when(apps.deployments()).thenReturn(deploymentOperation);
-        when(deploymentOperation.inNamespace(NAMESPACE)).thenReturn(namespacedDeploymentOperation);
-        when(namespacedDeploymentOperation.withName(MICRO_NAME)).thenReturn(deploymentResource);
-        when(deploymentResource.get()).thenReturn(deployment);
-    }
-
-    private Deployment createDeployment(String uid) {
-        Deployment deployment = new Deployment();
-        ObjectMeta metadata = new ObjectMeta();
-        metadata.setName(MICRO_NAME);
-        metadata.setUid(uid);
-        deployment.setMetadata(metadata);
-        return deployment;
-    }
+    private record ApplyResult(AtomicReference<ConfigMap> appliedConfigMapRef, AtomicBoolean wasApplied) {}
 }
