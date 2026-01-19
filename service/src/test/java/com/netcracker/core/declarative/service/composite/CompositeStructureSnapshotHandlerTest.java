@@ -46,7 +46,7 @@ class CompositeStructureSnapshotHandlerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> dataCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(configMapUpdater).requestUpdate(CONFIG_MAP_NAME, dataCaptor.capture());
+        verify(configMapUpdater).requestUpdate(eq(CONFIG_MAP_NAME), dataCaptor.capture());
 
         Map<String, String> data = dataCaptor.getValue();
         assertEquals(1, data.size());
