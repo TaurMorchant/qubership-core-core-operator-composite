@@ -21,13 +21,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class CompositeStructureWatchCoordinator {
     public static final String CONFIG_MAP_NAME = "composite-structure";
-    private static final Duration MANAGEMENT_CHECK_INTERVAL = Duration.ofMinutes(5);
+    private static final Duration CONFIG_MAP_MANAGEMENT_CHECK_INTERVAL = Duration.ofMinutes(5);
 
     private final CompositeStructureWatcher compositeStructureWatcher;
     private final ConfigMapClient configMapClient;
     private final String namespace;
     private final AtomicBoolean watcherRunning;
-    private final ScheduledExecutorService managementCheckExecutor;
+    private final ScheduledExecutorService configMapManagementCheckExecutor;
 
     @Inject
     public CompositeStructureWatchCoordinator(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
@@ -38,8 +38,8 @@ public class CompositeStructureWatchCoordinator {
         this.configMapClient = configMapClient;
         this.compositeStructureWatcher = new CompositeStructureWatcher(namespace, consulClient, compositeStructureHandler);
         this.watcherRunning = new AtomicBoolean(false);
-        this.managementCheckExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread thread = new Thread(r, "composite-structure-management-check");
+        this.configMapManagementCheckExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread thread = new Thread(r, "composite-structure-config-map-management-check");
             thread.setDaemon(true);
             return thread;
         });
@@ -47,17 +47,17 @@ public class CompositeStructureWatchCoordinator {
 
     @PostConstruct
     void start() {
-        managementCheckExecutor.scheduleWithFixedDelay(
+        configMapManagementCheckExecutor.scheduleWithFixedDelay(
                 this::ensureWatcherState,
                 0,
-                MANAGEMENT_CHECK_INTERVAL.toMinutes(),
+                CONFIG_MAP_MANAGEMENT_CHECK_INTERVAL.toMinutes(),
                 TimeUnit.MINUTES
         );
     }
 
     @PreDestroy
     void stop() {
-        managementCheckExecutor.shutdownNow();
+        configMapManagementCheckExecutor.shutdownNow();
         stopWatcher();
     }
 
@@ -70,6 +70,7 @@ public class CompositeStructureWatchCoordinator {
             }
             log.info("Composite structure polling is disabled because '{}' is no longer managed by core-operator.", CONFIG_MAP_NAME);
             stopWatcher();
+            stopConfigMapManagementChecks();
         } catch (RuntimeException ex) {
             log.warn("Failed to verify management state for '{}'. Retrying on next schedule.", CONFIG_MAP_NAME, ex);
         }
@@ -87,5 +88,12 @@ public class CompositeStructureWatchCoordinator {
             return;
         }
         compositeStructureWatcher.stop();
+    }
+
+    private void stopConfigMapManagementChecks() {
+        if (configMapManagementCheckExecutor.isShutdown()) {
+            return;
+        }
+        configMapManagementCheckExecutor.shutdown();
     }
 }
