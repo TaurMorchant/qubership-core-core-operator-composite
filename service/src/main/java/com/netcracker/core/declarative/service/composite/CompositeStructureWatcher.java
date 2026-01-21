@@ -6,7 +6,6 @@ import com.netcracker.core.declarative.service.composite.consul.longpoll.ConsulL
 import com.netcracker.core.declarative.service.composite.consul.longpoll.LongPollConfig;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -29,7 +28,7 @@ public class CompositeStructureWatcher {
     private String currentCompositeStructureConsulPrefix;
     private boolean stopped = false;
 
-    public CompositeStructureWatcher(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
+    public CompositeStructureWatcher(String namespace,
                                      ConsulClient consulClient,
                                      ConsulSnapshotHandler compositeStructureStateHandler) {
         this.compositeStructureRefKey = COMPOSITE_STRUCTURE_REF_TEMPLATE.formatted(namespace);

@@ -67,7 +67,7 @@ public class CompositeStructureWatchCoordinator {
             if (shouldManage) {
                 startWatcher();
             } else {
-                log.info("Composite structure polling is disabled because '{}' is not managed by core-operator.", CONFIG_MAP_NAME);
+                log.debug("Composite structure polling is disabled because '{}' is not managed by core-operator.", CONFIG_MAP_NAME);
                 stopWatcher();
             }
         } catch (RuntimeException ex) {

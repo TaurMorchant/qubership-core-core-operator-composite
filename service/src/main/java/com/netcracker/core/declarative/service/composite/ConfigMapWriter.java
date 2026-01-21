@@ -76,16 +76,15 @@ public class ConfigMapWriter {
                 return;
             }
 
-            Duration boundedDelay = nextDelay.compareTo(MAX_RETRY_DELAY) > 0 ? MAX_RETRY_DELAY : nextDelay;
+            Duration retryDelay = nextDelay.compareTo(MAX_RETRY_DELAY) > 0 ? MAX_RETRY_DELAY : nextDelay;
             log.warn("Failed to update config map '{}' on attempt {}/{}. Retrying in {}.",
-                    configMapName, attempt, MAX_RETRY_ATTEMPTS, boundedDelay, ex);
+                    configMapName, attempt, MAX_RETRY_ATTEMPTS, retryDelay, ex);
 
             Duration followingDelay = nextDelay.multipliedBy(2);
             if (followingDelay.compareTo(MAX_RETRY_DELAY) > 0) {
                 followingDelay = MAX_RETRY_DELAY;
             }
-
-            scheduleUpdate(configMapName, payload, attempt + 1, boundedDelay, followingDelay);
+            scheduleUpdate(configMapName, payload, attempt + 1, retryDelay, followingDelay);
         }
     }
 }

@@ -51,15 +51,11 @@ public class CompositeStructureSnapshotHandler implements ConsulSnapshotHandler 
                     cloudOidcProxyUrl,
                     compositePayload
             );
-            String json = serializePayload(payload);
+            String json = objectMapper.writeValueAsString(payload);
             Map<String, String> compositeStructureContent = Map.of(CONFIG_MAP_DATA_KEY, json);
             configMapWriter.requestUpdate(CONFIG_MAP_NAME, compositeStructureContent);
         } catch (ConsulSnapshotSerializationException | JsonProcessingException e) {
             log.error("Failed to serialize Consul snapshot for config map '{}'", CONFIG_MAP_NAME, e);
         }
-    }
-
-    private String serializePayload(CompositeStructureConfigMapPayload payload) throws JsonProcessingException {
-        return objectMapper.writeValueAsString(payload);
     }
 }
