@@ -15,6 +15,12 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Asynchronously writes data to Kubernetes ConfigMaps with retry support.
+ * <p>
+ * Uses exponential backoff (3s -> 6s -> 12s -> 24s -> 30s max) for retries
+ * on failure, up to {@value #MAX_RETRY_ATTEMPTS} attempts.
+ */
 @ApplicationScoped
 @Slf4j
 public class ConfigMapWriter {
@@ -38,6 +44,9 @@ public class ConfigMapWriter {
         });
     }
 
+    /**
+     * Schedules an asynchronous ConfigMap update.
+     */
     public void requestUpdate(String configMapName, Map<String, String> payload) {
         Objects.requireNonNull(configMapName, "configMapName");
         Objects.requireNonNull(payload, "payload");

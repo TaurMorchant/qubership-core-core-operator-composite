@@ -16,6 +16,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Coordinates composite structure watching based on ConfigMap ownership.
+ * <p>
+ * Periodically checks if the {@value #CONFIG_MAP_NAME} ConfigMap is managed by core-operator.
+ * If managed, starts the {@link CompositeStructureWatcher}; otherwise stops it.
+ * This allows another operator to take over ConfigMap management when needed.
+ */
 @ApplicationScoped
 @Startup
 @Slf4j

@@ -17,6 +17,12 @@ import java.util.Map;
 
 import static com.netcracker.core.declarative.service.composite.CompositeStructureWatchCoordinator.CONFIG_MAP_NAME;
 
+/**
+ * Transforms Consul composite structure snapshots into ConfigMap.
+ * <p>
+ * Enriches the structure with cloud provider metadata and serializes to JSON
+ * for storage in the {@code composite-structure} ConfigMap.
+ */
 @ApplicationScoped
 @Slf4j
 public class CompositeStructureSnapshotHandler implements ConsulSnapshotHandler {

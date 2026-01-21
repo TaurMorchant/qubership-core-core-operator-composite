@@ -10,6 +10,16 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.Objects;
 
+/**
+ * Watches Consul for composite structure changes using long-polling.
+ * <p>
+ * Monitors two Consul paths:
+ * <ol>
+ *   <li>{@code config/{namespace}/application/composite/structureRef} - reference to the current structure prefix</li>
+ *   <li>The prefix itself - actual composite structure data</li>
+ * </ol>
+ * When the structure changes, delegates handling to {@link ConsulSnapshotHandler}.
+ */
 @Slf4j
 public class CompositeStructureWatcher {
 
