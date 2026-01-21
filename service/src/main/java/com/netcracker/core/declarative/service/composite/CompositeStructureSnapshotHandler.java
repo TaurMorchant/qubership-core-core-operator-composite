@@ -2,7 +2,7 @@ package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.service.composite.consul.ConsulSnapshotHandler;
 import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructureConfigMapPayload;
-import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructurePayload;
+import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructure;
 import com.netcracker.core.declarative.service.composite.consul.model.CompositeStructureSerializer;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulSnapshotSerializationException;
@@ -45,7 +45,7 @@ public class CompositeStructureSnapshotHandler implements ConsulSnapshotHandler 
     public void handle(ConsulPrefixSnapshot compositeStructureSnapshot) {
         log.info("Store Composite Structure to config map {}", CONFIG_MAP_NAME);
         try {
-            CompositeStructurePayload compositePayload = CompositeStructureSerializer.toPayload(compositeStructureSnapshot);
+            CompositeStructure compositePayload = CompositeStructureSerializer.toPayload(compositeStructureSnapshot);
             CompositeStructureConfigMapPayload payload = new CompositeStructureConfigMapPayload(
                     cloudProvider,
                     cloudOidcProxyUrl,

@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record CompositeStructureConfigMapPayload(
         String cloudProvider,
         String cloudOIDCProxyUrl,
-        CompositeStructurePayload composite
+        CompositeStructure composite
 ) {
 }

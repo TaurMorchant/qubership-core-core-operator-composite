@@ -13,7 +13,7 @@ public class CompositeStructureSerializer {
     private static final Pattern STRUCTURE_ENTRY_PATTERN = Pattern.compile("^composite/[^/]+/structure/([^/]+)/([^/]+)$");
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    public static CompositeStructurePayload toPayload(ConsulPrefixSnapshot consulPrefixSnapshot) {
+    public static CompositeStructure toPayload(ConsulPrefixSnapshot consulPrefixSnapshot) {
         LinkedHashMap<String, Namespace> namespaces = new LinkedHashMap<>();
 
         consulPrefixSnapshot.getKeySet().stream()
@@ -40,14 +40,14 @@ public class CompositeStructureSerializer {
                     }
                 });
 
-        return new CompositeStructurePayload(
+        return new CompositeStructure(
                 buildBaseline(namespaces.values()),
                 buildSatellites(namespaces.values())
         );
     }
 
     public static String serialize(ConsulPrefixSnapshot consulPrefixSnapshot) {
-        CompositeStructurePayload payload = toPayload(consulPrefixSnapshot);
+        CompositeStructure payload = toPayload(consulPrefixSnapshot);
         try {
             return OBJECT_MAPPER.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
@@ -55,7 +55,7 @@ public class CompositeStructureSerializer {
         }
     }
 
-    private static NamespaceRolesPayload buildBaseline(Collection<Namespace> namespaces) {
+    private static NamespaceRoles buildBaseline(Collection<Namespace> namespaces) {
         List<Namespace> baselineNamespaces = namespaces.stream()
                 .filter(entry -> entry.getCompositeRole() == CompositeRole.BASELINE)
                 .toList();
@@ -63,7 +63,7 @@ public class CompositeStructureSerializer {
         return buildNamespaceRoles(baselineNamespaces);
     }
 
-    private static List<NamespaceRolesPayload> buildSatellites(Collection<Namespace> namespaces) {
+    private static List<NamespaceRoles> buildSatellites(Collection<Namespace> namespaces) {
         LinkedHashMap<String, List<Namespace>> satellites = new LinkedHashMap<>();
 
         namespaces.stream()
@@ -96,7 +96,7 @@ public class CompositeStructureSerializer {
         return entry.getName();
     }
 
-    private static NamespaceRolesPayload buildNamespaceRoles(Collection<Namespace> namespaceEntries) {
+    private static NamespaceRoles buildNamespaceRoles(Collection<Namespace> namespaceEntries) {
         if (namespaceEntries.isEmpty()) {
             return null;
         }
@@ -118,7 +118,7 @@ public class CompositeStructureSerializer {
             return null;
         }
 
-        return new NamespaceRolesPayload(controller, origin, peer);
+        return new NamespaceRoles(controller, origin, peer);
     }
 
     private static String findNamespaceByBlueGreenRole(Collection<Namespace> namespaces, BlueGreenRole blueGreenRole) {
