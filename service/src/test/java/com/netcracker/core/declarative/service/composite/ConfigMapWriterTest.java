@@ -1,7 +1,6 @@
 package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.client.k8s.ConfigMapClient;
-import io.fabric8.kubernetes.client.KubernetesClientException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,7 @@ class ConfigMapWriterTest {
 
         doAnswer(invocation -> {
             if (invocationCounter.getAndIncrement() == 0) {
-                throw new KubernetesClientException("boom");
+                throw new RuntimeException("boom");
             }
             return null;
         }).when(configMapClient).createOrUpdate(eq(CONFIG_MAP_NAME), eq(NAMESPACE), eq(payload), isNull());
@@ -57,7 +56,7 @@ class ConfigMapWriterTest {
     void requestUpdateStopsAfterMaxAttempts() throws Exception {
         Map<String, String> payload = Map.of("compositeStructure", "{}");
         doAnswer(invocation -> {
-            throw new KubernetesClientException("boom");
+            throw new RuntimeException("boom");
         }).when(configMapClient).createOrUpdate(eq(CONFIG_MAP_NAME), eq(NAMESPACE), eq(payload), isNull());
 
         int maxAttempts = getMaxRetryAttempts();

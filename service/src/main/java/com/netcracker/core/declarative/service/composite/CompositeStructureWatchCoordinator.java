@@ -66,11 +66,10 @@ public class CompositeStructureWatchCoordinator {
             boolean shouldManage = configMapClient.isManagedByCoreOperator(CONFIG_MAP_NAME, namespace);
             if (shouldManage) {
                 startWatcher();
-                return;
+            } else {
+                log.info("Composite structure polling is disabled because '{}' is not managed by core-operator.", CONFIG_MAP_NAME);
+                stopWatcher();
             }
-            log.info("Composite structure polling is disabled because '{}' is no longer managed by core-operator.", CONFIG_MAP_NAME);
-            stopWatcher();
-            stopConfigMapManagementChecks();
         } catch (RuntimeException ex) {
             log.warn("Failed to verify management state for '{}'. Retrying on next schedule.", CONFIG_MAP_NAME, ex);
         }
@@ -88,12 +87,5 @@ public class CompositeStructureWatchCoordinator {
             return;
         }
         compositeStructureWatcher.stop();
-    }
-
-    private void stopConfigMapManagementChecks() {
-        if (configMapManagementCheckExecutor.isShutdown()) {
-            return;
-        }
-        configMapManagementCheckExecutor.shutdown();
     }
 }

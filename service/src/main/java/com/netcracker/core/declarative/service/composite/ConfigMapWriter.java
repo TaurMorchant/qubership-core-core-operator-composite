@@ -1,7 +1,6 @@
 package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.client.k8s.ConfigMapClient;
-import io.fabric8.kubernetes.client.KubernetesClientException;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -70,7 +69,8 @@ public class ConfigMapWriter {
     private void updateConfigMap(String configMapName, Map<String, String> payload, int attempt, Duration nextDelay) {
         try {
             configMapClient.createOrUpdate(configMapName, namespace, payload, null);
-        } catch (KubernetesClientException ex) {
+            log.debug("Successfully updated config map '{}'", configMapName);
+        } catch (RuntimeException ex) {
             if (attempt >= MAX_RETRY_ATTEMPTS) {
                 log.error("Failed to update config map '{}' after {} attempts", configMapName, attempt, ex);
                 return;

@@ -22,11 +22,12 @@ public class CompositeStructureWatcher {
     private final String compositeStructureRefKey;
     private final ConsulClient consulClient;
     private final ConsulSnapshotHandler consulSnapshotHandler;
+    private final Object lock = new Object();
 
     private ConsulLongPoller compositeStructureRefPoller;
     private ConsulLongPoller compositeStructurePoller;
-
-    private volatile String currentCompositeStructureConsulPrefix;
+    private String currentCompositeStructureConsulPrefix;
+    private boolean stopped = false;
 
     public CompositeStructureWatcher(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
                                      ConsulClient consulClient,
@@ -37,61 +38,75 @@ public class CompositeStructureWatcher {
     }
 
     void start() {
-        startCompositeStructureRefLongPoll();
-    }
+        synchronized (lock) {
+            if (compositeStructureRefPoller != null) {
+                log.debug("CompositeWatcher already started, skipping");
+                return;
+            }
+            stopped = false;
+            log.info("CompositeWatcher start. Composite Structure ref key = '{}'", compositeStructureRefKey);
 
-    void startCompositeStructureRefLongPoll() {
-        log.info("CompositeWatcher start. Composite Structure ref key = '{}'", compositeStructureRefKey);
-
-        this.compositeStructureRefPoller = ConsulLongPoller.builder()
-                .path(compositeStructureRefKey)
-                .consulClient(consulClient)
-                .pollConfig(KV_POLL_CONFIG)
-                .onSnapshot(this::onCompositeStructureRefSnapshot)
-                .build();
-        compositeStructureRefPoller.start();
+            compositeStructureRefPoller = ConsulLongPoller.builder()
+                    .path(compositeStructureRefKey)
+                    .consulClient(consulClient)
+                    .pollConfig(KV_POLL_CONFIG)
+                    .onSnapshot(this::onCompositeStructureRefSnapshot)
+                    .build();
+            compositeStructureRefPoller.start();
+        }
     }
 
     void stop() {
-        if (compositeStructureRefPoller != null) {
-            compositeStructureRefPoller.close();
+        synchronized (lock) {
+            stopped = true;
+            if (compositeStructureRefPoller != null) {
+                compositeStructureRefPoller.close();
+                compositeStructureRefPoller = null;
+            }
+            if (compositeStructurePoller != null) {
+                compositeStructurePoller.close();
+                compositeStructurePoller = null;
+            }
+            currentCompositeStructureConsulPrefix = null;
+            log.info("CompositeWatcher stopped.");
         }
-        if (compositeStructurePoller != null) {
-            compositeStructurePoller.close();
-        }
-        log.info("CompositeWatcher stopped.");
     }
 
     private void onCompositeStructureRefSnapshot(ConsulPrefixSnapshot snapshot) {
         final String compositeStructurePrefix = snapshot.getValue(compositeStructureRefKey);
         log.info("Current composite structure prefix = '{}'", compositeStructurePrefix);
-        startWatchCompositeStructure(compositeStructurePrefix);
+        switchCompositeStructurePoller(compositeStructurePrefix);
     }
 
-    private void startWatchCompositeStructure(String newCompositeStructureConsulPrefix) {
-        if (Objects.equals(currentCompositeStructureConsulPrefix, newCompositeStructureConsulPrefix)) {
-            log.debug("Composite Structure Consul prefix is unchanged: '{}'", newCompositeStructureConsulPrefix);
-            return;
-        }
-        if (compositeStructurePoller != null) {
-            compositeStructurePoller.close();
-            compositeStructurePoller = null;
-        }
-        currentCompositeStructureConsulPrefix = newCompositeStructureConsulPrefix;
+    private void switchCompositeStructurePoller(String newCompositeStructureConsulPrefix) {
+        synchronized (lock) {
+            if (stopped) {
+                return;
+            }
+            if (Objects.equals(currentCompositeStructureConsulPrefix, newCompositeStructureConsulPrefix)) {
+                log.debug("Composite Structure Consul prefix is unchanged: '{}'", newCompositeStructureConsulPrefix);
+                return;
+            }
+            if (compositeStructurePoller != null) {
+                compositeStructurePoller.close();
+                compositeStructurePoller = null;
+            }
+            currentCompositeStructureConsulPrefix = newCompositeStructureConsulPrefix;
 
-        if (newCompositeStructureConsulPrefix == null || newCompositeStructureConsulPrefix.isBlank()) {
-            log.warn("structureRef empty — structure polling paused.");
-            return;
+            if (newCompositeStructureConsulPrefix == null || newCompositeStructureConsulPrefix.isBlank()) {
+                log.warn("structureRef empty — structure polling paused.");
+                return;
+            }
+
+            log.info("Switching composite structure polling to prefix = '{}'", newCompositeStructureConsulPrefix);
+
+            compositeStructurePoller = ConsulLongPoller.builder()
+                    .path(newCompositeStructureConsulPrefix)
+                    .consulClient(consulClient)
+                    .pollConfig(KV_POLL_CONFIG)
+                    .onSnapshot(consulSnapshotHandler::handle)
+                    .build();
+            compositeStructurePoller.start();
         }
-
-        log.info("Switching composite structure polling to prefix = '{}'", newCompositeStructureConsulPrefix);
-
-        this.compositeStructurePoller = ConsulLongPoller.builder()
-                .path(newCompositeStructureConsulPrefix)
-                .consulClient(consulClient)
-                .pollConfig(KV_POLL_CONFIG)
-                .onSnapshot(consulSnapshotHandler::handle)
-                .build();
-        compositeStructurePoller.start();
     }
 }
