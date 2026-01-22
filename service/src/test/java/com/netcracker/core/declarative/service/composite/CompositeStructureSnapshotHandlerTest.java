@@ -1,6 +1,7 @@
 package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
+import com.netcracker.core.declarative.service.composite.consul.model.ConsulSnapshotSerializationException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +16,7 @@ import java.util.Map;
 import static com.netcracker.core.declarative.service.composite.CompositeStructureWatchCoordinator.CONFIG_MAP_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -62,12 +64,12 @@ class CompositeStructureSnapshotHandlerTest {
     }
 
     @Test
-    void handleShouldNotCallWriterOnSerializationError() {
+    void handleShouldThrowOnSerializationError() {
         ConsulPrefixSnapshot snapshot = createSnapshot(Map.of(
                 "composite/sample/structure/ns-a/compositeRole", "INVALID_ROLE"
         ));
 
-        handler.handle(snapshot);
+        assertThrows(ConsulSnapshotSerializationException.class, () -> handler.handle(snapshot));
 
         verifyNoInteractions(configMapWriter);
     }

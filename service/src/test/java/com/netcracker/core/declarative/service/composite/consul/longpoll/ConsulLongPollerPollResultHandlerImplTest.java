@@ -37,7 +37,7 @@ class ConsulLongPollerPollResultHandlerImplTest {
 
         PollSession pollSession = mock(PollSession.class);
         doReturn(7L).when(pollSession).currentIndex();
-        doReturn(true).when(pollSession).shouldEmit(anyLong(), anyLong(), anyBoolean());
+        doReturn(true).when(pollSession).shouldEmit(anyLong(), anyBoolean());
         injectField(poller, "pollSession", pollSession);
 
         PollResultHandler handler = pollOnceAndCaptureHandler(poller, consulClient, 7L);
@@ -53,7 +53,7 @@ class ConsulLongPollerPollResultHandlerImplTest {
         verify(scheduler).schedule(durationCaptor.capture(), runnableCaptor.capture());
         assertThat(durationCaptor.getValue()).isEqualTo(Duration.ZERO);
         assertThat(runnableCaptor.getValue()).isNotNull();
-        verify(pollSession).shouldEmit(7L, 10L, true);
+        verify(pollSession).shouldEmit(10L, true);
         verify(onSnapshot).accept(snapshot);
     }
 
@@ -68,7 +68,7 @@ class ConsulLongPollerPollResultHandlerImplTest {
 
         PollSession pollSession = mock(PollSession.class);
         doReturn(11L).when(pollSession).currentIndex();
-        doReturn(false).when(pollSession).shouldEmit(anyLong(), anyLong(), anyBoolean());
+        doReturn(false).when(pollSession).shouldEmit(anyLong(), anyBoolean());
         injectField(poller, "pollSession", pollSession);
 
         PollResultHandler handler = pollOnceAndCaptureHandler(poller, consulClient, 11L);
@@ -84,7 +84,7 @@ class ConsulLongPollerPollResultHandlerImplTest {
         verify(scheduler).schedule(durationCaptor.capture(), runnableCaptor.capture());
         assertThat(durationCaptor.getValue()).isEqualTo(Duration.ZERO);
         assertThat(runnableCaptor.getValue()).isNotNull();
-        verify(pollSession).shouldEmit(11L, 12L, true);
+        verify(pollSession).shouldEmit(12L, true);
         verify(onSnapshot, never()).accept(any());
     }
 

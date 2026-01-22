@@ -38,13 +38,18 @@ public final class ConsulClientWrapper implements ConsulClient {
         String token = tokenStorage.get();
         io.vertx.ext.consul.ConsulClient consulClient = consulClientFactory.create(token, readTimeoutMillis);
         log.debug("Await values from consul. path='{}', requestIndex={}, wait={}", path, index, wait);
-        consulClient.getValuesWithOptions(path, bq, ar -> {
-            try {
-                handle(path, handler, ar);
-            } finally {
-                consulClient.close();
-            }
-        });
+        try {
+            consulClient.getValuesWithOptions(path, bq, ar -> {
+                try {
+                    handle(path, handler, ar);
+                } finally {
+                    consulClient.close();
+                }
+            });
+        } catch (Exception e) {
+            consulClient.close();
+            throw e;
+        }
     }
 
     void handle(String path,

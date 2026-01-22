@@ -69,7 +69,7 @@ public final class ConsulLongPoller implements AutoCloseable {
         final Duration wait = pollConfig.getWait();
 
         try {
-            consulClient.awaitChanges(path, currentIndex, wait, new PollResultHandlerImpl(currentIndex));
+            consulClient.awaitChanges(path, currentIndex, wait, new PollResultHandlerImpl());
         } catch (Exception err) {
             if (pollScheduler.isClosed()) {
                 return;
@@ -82,11 +82,6 @@ public final class ConsulLongPoller implements AutoCloseable {
 
 
     private final class PollResultHandlerImpl implements PollResultHandler {
-        private final long currentIndex;
-
-        private PollResultHandlerImpl(long currentIndex) {
-            this.currentIndex = currentIndex;
-        }
 
         @Override
         public void onSuccess(ConsulPrefixSnapshot snapshot) {
@@ -94,11 +89,19 @@ public final class ConsulLongPoller implements AutoCloseable {
                 return;
             }
 
-            scheduleNextPoll(Duration.ZERO);
-
             final long newIndex = snapshot.getIndex();
-            if (pollSession.shouldEmit(currentIndex, newIndex, pollConfig.isFireOnFirstSuccess())) {
-                onSnapshot.accept(snapshot);
+            if (pollSession.shouldEmit(newIndex, pollConfig.isFireOnFirstSuccess())) {
+                try {
+                    onSnapshot.accept(snapshot);
+                    scheduleNextPoll(Duration.ZERO);
+                } catch (Exception e) {
+                    log.warn("Long Poller handler failed: path='{}', retry in {} (reason: {})",
+                            path, DELAY_ON_ERROR, e.getMessage());
+                    pollSession.reset();
+                    scheduleNextPoll(DELAY_ON_ERROR);
+                }
+            } else {
+                scheduleNextPoll(Duration.ZERO);
             }
         }
 
