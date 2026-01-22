@@ -37,19 +37,29 @@ public class CompositeStructureWatchCoordinator {
     private final ScheduledExecutorService configMapManagementCheckExecutor;
 
     @Inject
+    @SuppressWarnings("unused")
     public CompositeStructureWatchCoordinator(@ConfigProperty(name = "cloud.microservice.namespace") String namespace,
                                               ConsulClient consulClient,
                                               CompositeStructureSnapshotHandler compositeStructureHandler,
                                               ConfigMapClient configMapClient) {
+        this(namespace, configMapClient,
+                new CompositeStructureWatcher(namespace, consulClient, compositeStructureHandler),
+                Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread thread = new Thread(r, "composite-structure-configmap-check");
+                    thread.setDaemon(true);
+                    return thread;
+                }));
+    }
+
+    CompositeStructureWatchCoordinator(String namespace,
+                                       ConfigMapClient configMapClient,
+                                       CompositeStructureWatcher compositeStructureWatcher,
+                                       ScheduledExecutorService executor) {
         this.namespace = namespace;
         this.configMapClient = configMapClient;
-        this.compositeStructureWatcher = new CompositeStructureWatcher(namespace, consulClient, compositeStructureHandler);
+        this.compositeStructureWatcher = compositeStructureWatcher;
         this.watcherRunning = new AtomicBoolean(false);
-        this.configMapManagementCheckExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread thread = new Thread(r, "composite-structure-config-map-management-check");
-            thread.setDaemon(true);
-            return thread;
-        });
+        this.configMapManagementCheckExecutor = executor;
     }
 
     @PostConstruct

@@ -2,207 +2,156 @@ package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.service.composite.consul.ConsulClient;
 import com.netcracker.core.declarative.service.composite.consul.longpoll.ConsulLongPoller;
-import com.netcracker.core.declarative.service.composite.consul.longpoll.ConsulLongPoller.ConsulLongPollerBuilder;
+import com.netcracker.core.declarative.service.composite.consul.longpoll.ConsulLongPollerFactory;
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.mockito.Mockito.RETURNS_SELF;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-@SuppressWarnings("unchecked")
 class CompositeStructureWatcherTest {
 
-    @Mock
-    ConsulClient consulClient;
+    private static final String NAMESPACE = "ns";
+    private static final String STRUCTURE_REF_KEY = "config/ns/application/composite/structureRef";
 
-    @Mock
-    CompositeStructureSnapshotHandler snapshotHandler;
+    private ConsulClient consulClient;
+    private CompositeStructureSnapshotHandler snapshotHandler;
+    private ConsulLongPollerFactory pollerFactory;
+    private ConsulLongPoller refPoller;
+    private ConsulLongPoller structurePoller;
+    private Consumer<ConsulPrefixSnapshot> capturedRefCallback;
 
-    @Mock
-    ConsulLongPoller refPoller;
+    private CompositeStructureWatcher watcher;
 
-    @Mock
-    ConsulLongPoller structurePoller;
+    @BeforeEach
+    void setUp() {
+        consulClient = mock(ConsulClient.class);
+        snapshotHandler = mock(CompositeStructureSnapshotHandler.class);
+        pollerFactory = mock(ConsulLongPollerFactory.class);
+        refPoller = mock(ConsulLongPoller.class);
+        structurePoller = mock(ConsulLongPoller.class);
 
-    @Mock
-    ConsulLongPoller newStructurePoller;
+        when(pollerFactory.create(eq(STRUCTURE_REF_KEY), eq(consulClient), any(), any()))
+                .thenAnswer(invocation -> {
+                    capturedRefCallback = invocation.getArgument(3);
+                    return refPoller;
+                });
 
-    @Test
-    void startShouldStartCompositeStructureRefPoller() {
-        ConsulLongPollerBuilder builder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
-        when(builder.build()).thenReturn(refPoller);
-
-        try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
-            mockedStatic.when(ConsulLongPoller::builder).thenReturn(builder);
-
-            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
-            watcher.start();
-
-            verify(builder).path("config/ns/application/composite/structureRef");
-            verify(builder).consulClient(consulClient);
-            verify(builder).pollConfig(Mockito.any());
-            verify(builder).onSnapshot(Mockito.any());
-            verify(refPoller).start();
-        }
+        watcher = new CompositeStructureWatcher(NAMESPACE, consulClient, snapshotHandler, pollerFactory);
     }
 
     @Test
-    void newPrefixShouldSwitchCompositeStructurePoller() {
-        ConsulLongPollerBuilder refBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
-        ConsulLongPollerBuilder structureBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
-        ConsulLongPollerBuilder secondStructureBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
+    void startShouldCreateAndStartRefPoller() {
+        watcher.start();
 
-        when(refBuilder.build()).thenReturn(refPoller);
-        when(structureBuilder.build()).thenReturn(structurePoller);
-        when(secondStructureBuilder.build()).thenReturn(newStructurePoller);
-        AtomicReference<Consumer<ConsulPrefixSnapshot>> firstStructureConsumer = new AtomicReference<>();
-        when(structureBuilder.onSnapshot(Mockito.any())).thenAnswer(invocation -> {
-            firstStructureConsumer.set(invocation.getArgument(0));
-            return structureBuilder;
-        });
-        AtomicReference<Consumer<ConsulPrefixSnapshot>> secondStructureConsumer = new AtomicReference<>();
-        when(secondStructureBuilder.onSnapshot(Mockito.any())).thenAnswer(invocation -> {
-            secondStructureConsumer.set(invocation.getArgument(0));
-            return secondStructureBuilder;
-        });
-
-        try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
-            mockedStatic.when(ConsulLongPoller::builder)
-                    .thenReturn(refBuilder, structureBuilder, secondStructureBuilder);
-
-            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
-            watcher.start();
-
-            ArgumentCaptor<Consumer<ConsulPrefixSnapshot>> refSnapshotCaptor = ArgumentCaptor.forClass(Consumer.class);
-            verify(refBuilder).onSnapshot(refSnapshotCaptor.capture());
-
-            ConsulPrefixSnapshot firstSnapshot = mock(ConsulPrefixSnapshot.class);
-            when(firstSnapshot.getValue("config/ns/application/composite/structureRef")).thenReturn("prefix/one");
-
-            refSnapshotCaptor.getValue().accept(firstSnapshot);
-
-            verify(structureBuilder).path("prefix/one");
-            verify(structurePoller).start();
-            ConsulPrefixSnapshot payloadSnapshot = mock(ConsulPrefixSnapshot.class);
-            firstStructureConsumer.get().accept(payloadSnapshot);
-            verify(snapshotHandler).handle(payloadSnapshot);
-
-            ConsulPrefixSnapshot secondSnapshot = mock(ConsulPrefixSnapshot.class);
-            when(secondSnapshot.getValue("config/ns/application/composite/structureRef")).thenReturn("prefix/two");
-
-            refSnapshotCaptor.getValue().accept(secondSnapshot);
-
-            verify(structurePoller).close();
-            verify(secondStructureBuilder).path("prefix/two");
-            verify(newStructurePoller).start();
-            ConsulPrefixSnapshot newPayloadSnapshot = mock(ConsulPrefixSnapshot.class);
-            secondStructureConsumer.get().accept(newPayloadSnapshot);
-            verify(snapshotHandler).handle(newPayloadSnapshot);
-        }
+        verify(pollerFactory).create(eq(STRUCTURE_REF_KEY), eq(consulClient), any(), any());
+        verify(refPoller).start();
     }
 
     @Test
-    void samePrefixShouldNotRestartPolling() {
-        ConsulLongPollerBuilder refBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
-        ConsulLongPollerBuilder structureBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
+    void startShouldBeIdempotent() {
+        watcher.start();
+        watcher.start();
 
-        when(refBuilder.build()).thenReturn(refPoller);
-        when(structureBuilder.build()).thenReturn(structurePoller);
-
-        try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
-            mockedStatic.when(ConsulLongPoller::builder).thenReturn(refBuilder, structureBuilder);
-
-            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
-            watcher.start();
-
-            ArgumentCaptor<Consumer<ConsulPrefixSnapshot>> refSnapshotCaptor = ArgumentCaptor.forClass(Consumer.class);
-            verify(refBuilder).onSnapshot(refSnapshotCaptor.capture());
-
-            ConsulPrefixSnapshot snapshot = mock(ConsulPrefixSnapshot.class);
-            when(snapshot.getValue("config/ns/application/composite/structureRef")).thenReturn("prefix/one");
-
-            refSnapshotCaptor.getValue().accept(snapshot);
-            refSnapshotCaptor.getValue().accept(snapshot);
-
-            verify(structureBuilder, times(1)).build();
-            verify(structurePoller, times(1)).start();
-            verify(structurePoller, times(0)).close();
-            mockedStatic.verify(ConsulLongPoller::builder, times(2));
-        }
+        verify(refPoller).start();
     }
 
     @Test
-    void blankPrefixShouldStopCurrentPoller() {
-        ConsulLongPollerBuilder refBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
-        ConsulLongPollerBuilder structureBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
+    void stopShouldCloseRefPoller() {
+        watcher.start();
+        watcher.stop();
 
-        when(refBuilder.build()).thenReturn(refPoller);
-        when(structureBuilder.build()).thenReturn(structurePoller);
-
-        try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
-            mockedStatic.when(ConsulLongPoller::builder).thenReturn(refBuilder, structureBuilder);
-
-            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
-            watcher.start();
-
-            ArgumentCaptor<Consumer<ConsulPrefixSnapshot>> refSnapshotCaptor = ArgumentCaptor.forClass(Consumer.class);
-            verify(refBuilder).onSnapshot(refSnapshotCaptor.capture());
-
-            ConsulPrefixSnapshot snapshotWithPrefix = mock(ConsulPrefixSnapshot.class);
-            when(snapshotWithPrefix.getValue("config/ns/application/composite/structureRef")).thenReturn("prefix/one");
-            refSnapshotCaptor.getValue().accept(snapshotWithPrefix);
-
-            ConsulPrefixSnapshot blankSnapshot = mock(ConsulPrefixSnapshot.class);
-            when(blankSnapshot.getValue("config/ns/application/composite/structureRef")).thenReturn("   ");
-            refSnapshotCaptor.getValue().accept(blankSnapshot);
-
-            verify(structurePoller).close();
-            mockedStatic.verify(ConsulLongPoller::builder, times(2));
-        }
+        verify(refPoller).close();
     }
 
     @Test
-    void stopShouldCloseActivePollers() {
-        ConsulLongPollerBuilder refBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
-        ConsulLongPollerBuilder structureBuilder = mock(ConsulLongPollerBuilder.class, RETURNS_SELF);
+    void newPrefixShouldStartStructurePoller() {
+        when(pollerFactory.create(eq("prefix/one"), eq(consulClient), any(), any()))
+                .thenReturn(structurePoller);
 
-        when(refBuilder.build()).thenReturn(refPoller);
-        when(structureBuilder.build()).thenReturn(structurePoller);
+        watcher.start();
+        simulateRefSnapshot("prefix/one");
 
-        try (MockedStatic<ConsulLongPoller> mockedStatic = Mockito.mockStatic(ConsulLongPoller.class)) {
-            mockedStatic.when(ConsulLongPoller::builder).thenReturn(refBuilder, structureBuilder);
+        verify(pollerFactory).create(eq("prefix/one"), eq(consulClient), any(), any());
+        verify(structurePoller).start();
+    }
 
-            CompositeStructureWatcher watcher = new CompositeStructureWatcher("ns", consulClient, snapshotHandler);
-            watcher.start();
+    @Test
+    void prefixChangeShouldSwitchPoller() {
+        ConsulLongPoller newStructurePoller = mock(ConsulLongPoller.class);
+        when(pollerFactory.create(eq("prefix/one"), eq(consulClient), any(), any()))
+                .thenReturn(structurePoller);
+        when(pollerFactory.create(eq("prefix/two"), eq(consulClient), any(), any()))
+                .thenReturn(newStructurePoller);
 
-            ArgumentCaptor<Consumer<ConsulPrefixSnapshot>> refSnapshotCaptor = ArgumentCaptor.forClass(Consumer.class);
-            verify(refBuilder).onSnapshot(refSnapshotCaptor.capture());
+        watcher.start();
+        simulateRefSnapshot("prefix/one");
+        simulateRefSnapshot("prefix/two");
 
-            ConsulPrefixSnapshot snapshot = mock(ConsulPrefixSnapshot.class);
-            when(snapshot.getValue("config/ns/application/composite/structureRef")).thenReturn("prefix/one");
-            refSnapshotCaptor.getValue().accept(snapshot);
+        verify(structurePoller).close();
+        verify(newStructurePoller).start();
+    }
 
-            verify(refPoller).start();
-            verify(structurePoller).start();
-            watcher.stop();
+    @Test
+    void samePrefixShouldNotRestartPoller() {
+        when(pollerFactory.create(eq("prefix/one"), eq(consulClient), any(), any()))
+                .thenReturn(structurePoller);
 
-            verify(refPoller).close();
-            verify(structurePoller).close();
-            verifyNoMoreInteractions(refPoller, structurePoller);
-        }
+        watcher.start();
+        simulateRefSnapshot("prefix/one");
+        simulateRefSnapshot("prefix/one");
+
+        verify(structurePoller).start();
+        verify(structurePoller, never()).close();
+    }
+
+    @Test
+    void blankPrefixShouldStopPoller() {
+        when(pollerFactory.create(eq("prefix/one"), eq(consulClient), any(), any()))
+                .thenReturn(structurePoller);
+
+        watcher.start();
+        simulateRefSnapshot("prefix/one");
+        simulateRefSnapshot("   ");
+
+        verify(structurePoller).close();
+    }
+
+    @Test
+    void stopShouldCloseAllPollers() {
+        when(pollerFactory.create(eq("prefix/one"), eq(consulClient), any(), any()))
+                .thenReturn(structurePoller);
+
+        watcher.start();
+        simulateRefSnapshot("prefix/one");
+        watcher.stop();
+
+        verify(refPoller).close();
+        verify(structurePoller).close();
+    }
+
+    @Test
+    void snapshotAfterStopShouldBeIgnored() {
+        when(pollerFactory.create(eq("prefix/one"), eq(consulClient), any(), any()))
+                .thenReturn(structurePoller);
+
+        watcher.start();
+        watcher.stop();
+        simulateRefSnapshot("prefix/one");
+
+        verify(structurePoller, never()).start();
+    }
+
+    private void simulateRefSnapshot(String prefix) {
+        ConsulPrefixSnapshot snapshot = mock(ConsulPrefixSnapshot.class);
+        when(snapshot.getValue(STRUCTURE_REF_KEY)).thenReturn(prefix);
+        capturedRefCallback.accept(snapshot);
     }
 }

@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 @ApplicationScoped
 @Slf4j
 public class ConfigMapWriter {
-    private static final int MAX_RETRY_ATTEMPTS = 5;
+    static final int MAX_RETRY_ATTEMPTS = 5;
     private static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(3);
     private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(30);
 
@@ -33,15 +33,20 @@ public class ConfigMapWriter {
     private final ScheduledExecutorService executor;
 
     @Inject
+    @SuppressWarnings("unused")
     public ConfigMapWriter(ConfigMapClient configMapClient,
                            @ConfigProperty(name = "cloud.microservice.namespace") String namespace) {
-        this.configMapClient = configMapClient;
-        this.namespace = namespace;
-        this.executor = Executors.newSingleThreadScheduledExecutor(r -> {
+        this(configMapClient, namespace, Executors.newSingleThreadScheduledExecutor(r -> {
             Thread thread = new Thread(r, "configmap-writer");
             thread.setDaemon(true);
             return thread;
-        });
+        }));
+    }
+
+    ConfigMapWriter(ConfigMapClient configMapClient, String namespace, ScheduledExecutorService executor) {
+        this.configMapClient = configMapClient;
+        this.namespace = namespace;
+        this.executor = executor;
     }
 
     /**

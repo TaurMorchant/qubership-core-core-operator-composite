@@ -1,6 +1,8 @@
 package com.netcracker.core.declarative.service.composite;
 
 import com.netcracker.core.declarative.service.composite.consul.model.ConsulPrefixSnapshot;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vertx.ext.consul.KeyValue;
 import io.vertx.ext.consul.KeyValueList;
@@ -12,55 +14,79 @@ import java.util.Map;
 
 import static com.netcracker.core.declarative.service.composite.CompositeStructureWatchCoordinator.CONFIG_MAP_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.eq;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class CompositeStructureSnapshotHandlerTest {
 
     private static final String CLOUD_PROVIDER = "OnPrem";
     private static final String CLOUD_OIDC_PROXY_URL = "http://super-proxy.namespace:8080";
 
-    private ConfigMapWriter configMapUpdater;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private ConfigMapWriter configMapWriter;
     private CompositeStructureSnapshotHandler handler;
 
     @BeforeEach
     void setUp() {
-        configMapUpdater = mock(ConfigMapWriter.class);
+        configMapWriter = mock(ConfigMapWriter.class);
         handler = new CompositeStructureSnapshotHandler(
-                new ObjectMapper(),
-                configMapUpdater,
+                objectMapper,
+                configMapWriter,
                 CLOUD_PROVIDER,
                 CLOUD_OIDC_PROXY_URL
         );
     }
 
     @Test
-    void handleShouldSerializeSnapshotAndUpdateConfigMap() {
-        ConsulPrefixSnapshot snapshot = snapshot(Map.of(
+    void handleShouldSerializeSnapshotAndUpdateConfigMap() throws JsonProcessingException {
+        ConsulPrefixSnapshot snapshot = createSnapshot(Map.of(
                 "composite/sample/structure/ns-a/compositeRole", "baseline",
                 "composite/sample/structure/ns-b/compositeRole", "satellite"
         ));
 
         handler.handle(snapshot);
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, String>> dataCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(configMapUpdater).requestUpdate(eq(CONFIG_MAP_NAME), dataCaptor.capture());
+        Map<String, String> capturedData = captureConfigMapData();
+        String json = capturedData.get("data");
+        assertNotNull(json);
 
-        Map<String, String> data = dataCaptor.getValue();
-        assertEquals(1, data.size());
-        assertEquals("{\"cloudProvider\":\"OnPrem\",\"cloudOIDCProxyUrl\":\"http://super-proxy.namespace:8080\","
-                        + "\"composite\":{\"baseline\":{\"origin\":\"ns-a\"},\"satellites\":[{\"origin\":\"ns-b\"}]}}",
-                data.get("data"));
+        JsonNode root = objectMapper.readTree(json);
+        assertEquals(CLOUD_PROVIDER, root.get("cloudProvider").asText());
+        assertEquals(CLOUD_OIDC_PROXY_URL, root.get("cloudOIDCProxyUrl").asText());
+
+        JsonNode composite = root.get("composite");
+        assertNotNull(composite);
+        assertEquals("ns-a", composite.get("baseline").get("origin").asText());
+        assertEquals(1, composite.get("satellites").size());
+        assertEquals("ns-b", composite.get("satellites").get(0).get("origin").asText());
     }
 
-    private static ConsulPrefixSnapshot snapshot(Map<String, String> keyValues) {
+    @Test
+    void handleShouldNotCallWriterOnSerializationError() {
+        ConsulPrefixSnapshot snapshot = createSnapshot(Map.of(
+                "composite/sample/structure/ns-a/compositeRole", "INVALID_ROLE"
+        ));
+
+        handler.handle(snapshot);
+
+        verifyNoInteractions(configMapWriter);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> captureConfigMapData() {
+        ArgumentCaptor<Map<String, String>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(configMapWriter).requestUpdate(eq(CONFIG_MAP_NAME), captor.capture());
+        return captor.getValue();
+    }
+
+    private static ConsulPrefixSnapshot createSnapshot(Map<String, String> keyValues) {
         KeyValueList keyValueList = new KeyValueList();
         keyValueList.setList(keyValues.entrySet().stream()
                 .map(entry -> new KeyValue().setKey(entry.getKey()).setValue(entry.getValue()))
                 .toList());
         return new ConsulPrefixSnapshot(keyValueList);
     }
-
 }

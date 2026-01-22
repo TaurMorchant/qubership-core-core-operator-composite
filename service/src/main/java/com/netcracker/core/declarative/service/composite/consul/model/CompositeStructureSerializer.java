@@ -153,11 +153,21 @@ public class CompositeStructureSerializer {
         }
 
         void setCompositeRole(String value) {
-            compositeRole = CompositeRole.valueOf(value.toUpperCase());
+            try {
+                compositeRole = CompositeRole.valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new ConsulSnapshotSerializationException(
+                        "Invalid composite role: " + value, e);
+            }
         }
 
         void setBlueGreenRole(String value) {
-            blueGreenRole = BlueGreenRole.valueOf(value.toUpperCase());
+            try {
+                blueGreenRole = BlueGreenRole.valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new ConsulSnapshotSerializationException(
+                        "Invalid blue-green role: " + value, e);
+            }
         }
     }
 }
