@@ -23,7 +23,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class CompositeStructureSnapshotHandlerTest {
 
     private static final String CLOUD_PROVIDER = "OnPrem";
-    private static final String CLOUD_OIDC_PROXY_URL = "http://super-proxy.namespace:8080";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ConfigMapWriter configMapWriter;
@@ -35,8 +34,7 @@ class CompositeStructureSnapshotHandlerTest {
         handler = new CompositeStructureSnapshotHandler(
                 objectMapper,
                 configMapWriter,
-                CLOUD_PROVIDER,
-                CLOUD_OIDC_PROXY_URL
+                CLOUD_PROVIDER
         );
     }
 
@@ -55,7 +53,6 @@ class CompositeStructureSnapshotHandlerTest {
 
         JsonNode root = objectMapper.readTree(json);
         assertEquals(CLOUD_PROVIDER, root.get("cloudProvider").asText());
-        assertEquals(CLOUD_OIDC_PROXY_URL, root.get("cloudOIDCProxyUrl").asText());
 
         JsonNode composite = root.get("composite");
         assertNotNull(composite);

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record CompositeStructureConfigMapPayload(
         String cloudProvider,
-        String cloudOIDCProxyUrl,
         CompositeStructure composite
 ) {
 }

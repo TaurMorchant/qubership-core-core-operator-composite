@@ -28,23 +28,18 @@ import static com.netcracker.core.declarative.service.composite.CompositeStructu
 public class CompositeStructureSnapshotHandler implements ConsulSnapshotHandler {
     private static final String CONFIG_MAP_DATA_KEY = "data";
     private static final String DEFAULT_CLOUD_PROVIDER = "OnPrem";
-    private static final String DEFAULT_CLOUD_OIDC_PROXY_URL = "http://super-proxy.namespace:8080";
 
     private final ObjectMapper objectMapper;
     private final String cloudProvider;
-    private final String cloudOidcProxyUrl;
     private final ConfigMapWriter configMapWriter;
 
     @Inject
     public CompositeStructureSnapshotHandler(ObjectMapper objectMapper,
                                              ConfigMapWriter configMapWriter,
-                                             @ConfigProperty(name = "CLOUD_PROVIDER", defaultValue = DEFAULT_CLOUD_PROVIDER) String cloudProvider,
-                                             @ConfigProperty(name = "CLOUD_OIDC_PROXY_URL",
-                                                        defaultValue = DEFAULT_CLOUD_OIDC_PROXY_URL) String cloudOidcProxyUrl) {
+                                             @ConfigProperty(name = "CLOUD_PROVIDER", defaultValue = DEFAULT_CLOUD_PROVIDER) String cloudProvider) {
         this.objectMapper = objectMapper;
         this.configMapWriter = configMapWriter;
         this.cloudProvider = cloudProvider;
-        this.cloudOidcProxyUrl = cloudOidcProxyUrl;
     }
 
     @Override
@@ -54,7 +49,6 @@ public class CompositeStructureSnapshotHandler implements ConsulSnapshotHandler 
             CompositeStructure compositePayload = CompositeStructureSerializer.toPayload(compositeStructureSnapshot);
             CompositeStructureConfigMapPayload payload = new CompositeStructureConfigMapPayload(
                     cloudProvider,
-                    cloudOidcProxyUrl,
                     compositePayload
             );
             String json = objectMapper.writeValueAsString(payload);
