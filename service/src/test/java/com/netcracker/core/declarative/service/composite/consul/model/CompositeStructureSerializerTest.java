@@ -1,5 +1,7 @@
 package com.netcracker.core.declarative.service.composite.consul.model;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vertx.ext.consul.KeyValue;
 import io.vertx.ext.consul.KeyValueList;
 import org.junit.jupiter.api.Test;
@@ -10,6 +12,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class CompositeStructureSerializerTest {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     @Test
     void standaloneTest() {
         Map<String, String> keyValues = new LinkedHashMap<>(){{
@@ -133,7 +137,12 @@ class CompositeStructureSerializerTest {
         keyValueList.setList(keyValues.entrySet().stream()
                 .map(entry -> new KeyValue().setKey(entry.getKey()).setValue(entry.getValue()))
                 .toList());
-        return CompositeStructureSerializer.serialize(new ConsulPrefixSnapshot(keyValueList));
+        CompositeStructure payload = CompositeStructureSerializer.toPayload(new ConsulPrefixSnapshot(keyValueList));
+        try {
+            return OBJECT_MAPPER.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
 

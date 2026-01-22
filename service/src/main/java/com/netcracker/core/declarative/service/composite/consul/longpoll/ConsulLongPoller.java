@@ -107,6 +107,9 @@ public final class ConsulLongPoller implements AutoCloseable {
 
         @Override
         public void onError(Throwable err) {
+            if (pollScheduler.isClosed()) {
+                return;
+            }
             String reason = (err != null ? err.getMessage() : "unknown error");
             log.warn("Long Poller error: path='{}', retry in {} (reason: {})", path, DELAY_ON_ERROR, reason);
             scheduleNextPoll(DELAY_ON_ERROR);

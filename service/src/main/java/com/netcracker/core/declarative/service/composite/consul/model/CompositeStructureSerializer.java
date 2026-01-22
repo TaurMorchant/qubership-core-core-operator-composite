@@ -1,7 +1,5 @@
 package com.netcracker.core.declarative.service.composite.consul.model;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,7 +9,6 @@ import java.util.regex.Pattern;
 
 public class CompositeStructureSerializer {
     private static final Pattern STRUCTURE_ENTRY_PATTERN = Pattern.compile("^composite/[^/]+/structure/([^/]+)/([^/]+)$");
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     public static CompositeStructure toPayload(ConsulPrefixSnapshot consulPrefixSnapshot) {
         LinkedHashMap<String, Namespace> namespaces = new LinkedHashMap<>();
@@ -46,15 +43,6 @@ public class CompositeStructureSerializer {
         );
     }
 
-    public static String serialize(ConsulPrefixSnapshot consulPrefixSnapshot) {
-        CompositeStructure payload = toPayload(consulPrefixSnapshot);
-        try {
-            return OBJECT_MAPPER.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
-            throw new ConsulSnapshotSerializationException("Failed to serialize composite structure", e);
-        }
-    }
-
     private static NamespaceRoles buildBaseline(Collection<Namespace> namespaces) {
         List<Namespace> baselineNamespaces = namespaces.stream()
                 .filter(entry -> entry.getCompositeRole() == CompositeRole.BASELINE)
@@ -70,7 +58,7 @@ public class CompositeStructureSerializer {
                 .filter(entry -> entry.getCompositeRole() == CompositeRole.SATELLITE)
                 .forEach(entry -> {
                     String satelliteKey = resolveSatelliteKey(entry);
-                    satellites.computeIfAbsent(satelliteKey, k -> new LinkedList<>()).add(entry);
+                    satellites.computeIfAbsent(satelliteKey, k -> new ArrayList<>()).add(entry);
                 });
 
         if (satellites.isEmpty()) {
@@ -153,6 +141,9 @@ public class CompositeStructureSerializer {
         }
 
         void setCompositeRole(String value) {
+            if (value == null || value.isBlank()) {
+                return;
+            }
             try {
                 compositeRole = CompositeRole.valueOf(value.toUpperCase());
             } catch (IllegalArgumentException e) {
@@ -162,6 +153,9 @@ public class CompositeStructureSerializer {
         }
 
         void setBlueGreenRole(String value) {
+            if (value == null || value.isBlank()) {
+                return;
+            }
             try {
                 blueGreenRole = BlueGreenRole.valueOf(value.toUpperCase());
             } catch (IllegalArgumentException e) {
