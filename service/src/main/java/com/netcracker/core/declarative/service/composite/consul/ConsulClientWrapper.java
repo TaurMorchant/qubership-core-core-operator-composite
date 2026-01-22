@@ -17,6 +17,8 @@ import java.time.Duration;
 @ApplicationScoped
 @Slf4j
 public final class ConsulClientWrapper implements ConsulClient {
+    private static final long DEFAULT_READ_TIMEOUT_MILLIS = Duration.ofMinutes(10).toMillis();
+
     private final ConsulClientFactory consulClientFactory;
     private final TokenStorage tokenStorage;
     private final long readTimeoutMillis;
@@ -26,7 +28,7 @@ public final class ConsulClientWrapper implements ConsulClient {
                                Instance<TokenStorage> tokenStorage) {
         this.consulClientFactory = consulClientFactory;
         this.tokenStorage = tokenStorage.get();
-        this.readTimeoutMillis = Duration.ofMinutes(10).toMillis();
+        this.readTimeoutMillis = DEFAULT_READ_TIMEOUT_MILLIS;
     }
 
     @Override

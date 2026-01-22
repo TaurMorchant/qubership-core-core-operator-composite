@@ -2,6 +2,7 @@ package com.netcracker.core.declarative.client.k8s;
 
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -10,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 @ApplicationScoped
 @Slf4j
@@ -96,15 +98,13 @@ public class ConfigMapClient {
     }
 
     boolean isManagedByCoreOperator(ConfigMap existingConfigMap) {
-        if (existingConfigMap == null || existingConfigMap.getMetadata() == null) {
+        if (existingConfigMap == null) {
             return true;
         }
-
-        Map<String, String> labels = existingConfigMap.getMetadata().getLabels();
-        if (labels == null) {
-            return true;
-        }
-
-        return !MANAGED_BY_TOPOLOGY_OPERATOR.equals(labels.get(LABEL_MANAGED_BY));
+        String managedBy = Optional.ofNullable(existingConfigMap.getMetadata())
+                .map(ObjectMeta::getLabels)
+                .map(labels -> labels.get(LABEL_MANAGED_BY))
+                .orElse(null);
+        return !MANAGED_BY_TOPOLOGY_OPERATOR.equals(managedBy);
     }
 }

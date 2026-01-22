@@ -96,6 +96,7 @@ public class CompositeStructureWatchCoordinator {
         if (!watcherRunning.compareAndSet(false, true)) {
             return;
         }
+        log.info("Starting composite structure watcher for ConfigMap '{}'", CONFIG_MAP_NAME);
         compositeStructureWatcher.start();
     }
 

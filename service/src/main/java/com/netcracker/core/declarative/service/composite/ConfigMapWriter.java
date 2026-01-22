@@ -83,7 +83,11 @@ public class ConfigMapWriter {
     private void updateConfigMap(String configMapName, Map<String, String> payload, int attempt, Duration nextDelay) {
         try {
             configMapClient.createOrUpdate(configMapName, namespace, payload, null);
-            log.debug("Successfully updated config map '{}'", configMapName);
+            if (attempt > 1) {
+                log.info("Successfully updated config map '{}' after {} attempts", configMapName, attempt);
+            } else {
+                log.debug("Successfully updated config map '{}'", configMapName);
+            }
         } catch (RuntimeException ex) {
             if (attempt >= MAX_RETRY_ATTEMPTS) {
                 log.error("Failed to update config map '{}' after {} attempts", configMapName, attempt, ex);
